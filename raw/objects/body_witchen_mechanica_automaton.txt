@@ -1,0 +1,25 @@
+body_witchen_mechanica_automaton
+
+[OBJECT:BODY]
+
+Automaton body parts are butcherable in arena mode but don't seem to be in fort mode.
+We would prefer them unbutcherable during gameplay.
+
+[BODY:WITCH_AUTOMATON_BODY]
+	[BP:BODY:body:bodies]
+		[CATEGORY:BODY]
+		[DEFAULT_RELSIZE:1500]
+
+[BODY:WITCH_AUTOMATON_CORE_RECEPTACLE]
+	[BP:CORE_RECEPTACLE:core receptacle:core receptacles]
+		[CON:BODY]
+		[CATEGORY:INTERNAL_MACHINERY]
+		[INTERNAL]
+		[DEFAULT_RELSIZE:100]
+
+[BODY:WITCH_AUTOMATON_IO_SYSTEMS]
+	[BP:CORE_RECEPTACLE:input/output system:input/output systems]
+		[CONBODY]
+		[CATEGORY:INTERNAL_MACHINERY]
+		[INTERNAL]
+		[DEFAULT_RELSIZE:300]

@@ -1,0 +1,24 @@
+inorganic_witchen_mechanica_lunium
+
+[OBJECT:INORGANIC]
+
+[INORGANIC:LUNIUM] Material of the moon
+	[USE_MATERIAL_TEMPLATE:STONE_TEMPLATE] Does not specify IS_STONE, which is good (this is not for masonry etc and doesn't come as boulders)
+	[STATE_COLOR:ALL:SILVER]
+	[STATE_NAME_ADJ:ALL:lunium]
+	[DISPLAY_COLOR:7:0:1]
+	[SOLID_DENSITY:800]
+	[MATERIAL_VALUE:4]
+	[SPECIAL]
+	[BLOCK_NAME:piece:pieces]
+	[WITCHEN_MECHANICA_PHASING] Can be used for floors above/below hoppers and for pass-through axles (which are TODO)
+
+[INORGANIC:DULL_LUNIUM] Lunium without special power
+	[USE_MATERIAL_TEMPLATE:STONE_TEMPLATE]
+	[STATE_COLOR:ALL:GRAY]
+	[STATE_NAME_ADJ:ALL:dull lunium]
+	[DISPLAY_COLOR:7:0:0]
+	[SOLID_DENSITY:600]
+	[MATERIAL_VALUE:2]
+	[SPECIAL]
+	[BLOCK_NAME:piece:pieces]
