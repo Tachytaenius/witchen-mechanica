@@ -6,7 +6,8 @@ local utils = require("utils")
 local timekeeping = dfhack.reqscript("witchen-mechanica/timekeeping")
 
 machines = utils.invert({
-	"WITCH_HOPPER"
+	"WITCH_HOPPER",
+	"WITCH_TURRET"
 })
 
 local function onTick()

@@ -1,4 +1,4 @@
-inorganic_witchen_mechanica_lunium
+inorganic_witchen_mechanica_magic_materials
 
 [OBJECT:INORGANIC]
 
@@ -22,3 +22,14 @@ inorganic_witchen_mechanica_lunium
 	[MATERIAL_VALUE:2]
 	[SPECIAL]
 	[BLOCK_NAME:piece:pieces]
+
+[INORGANIC:MAGINCIUM] The name Magincia is from Ultima
+	[USE_MATERIAL_TEMPLATE:STONE_TEMPLATE]
+	[MELTING_POINT:NONE]
+	[BOILING_POINT:NONE]
+	[STATE_COLOR:ALL:FUCHSIA]
+	[STATE_NAME_ADJ:ALL:magincium]
+	[DISPLAY_COLOR:5:3:1]
+	[SOLID_DENSITY:50]
+	[MATERIAL_VALUE:3]
+	[SPECIAL]

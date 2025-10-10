@@ -34,6 +34,7 @@ function isBuildingHopperInteractable(building)
 	if allowedHopperBuildingTypes[building._type] then
 		return true
 	end
+	return false
 end
 
 function canHopperPassThroughTile(x, y, z)
@@ -93,8 +94,8 @@ end
 
 function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocations)
 	if giveToBelow then
-		local belowX, belowY, belowZ = hopperBuilding.centerx, hopperBuilding.centery, hopperBuilding.z - 1
-		if canHopperPassThroughTile(belowX, belowY, belowZ) then
+		if canHopperPassThroughTile(hopperBuilding.centerx, hopperBuilding.centery, hopperBuilding.z) then
+			local belowX, belowY, belowZ = hopperBuilding.centerx, hopperBuilding.centery, hopperBuilding.z - 1
 			local belowBuilding = helpers.getBuildingAt(belowX, belowY, belowZ)
 			-- Find an item to give
 			local itemRefIndex, itemRef
@@ -105,7 +106,7 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 					break
 				end
 			end
-			local item = itemRef:getItem()
+			local item = itemRef and itemRef.item
 			if item and hopperCanMoveItem(item) then
 				if belowBuilding and belowBuilding._type == df.building_trapst and belowBuilding.trap_type == df.trap_type.TrackStop then
 					-- Give item to a minecart, if present
@@ -168,7 +169,7 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 						-- 	end
 						-- end
 						-- Better to just avoid moving any items that might cause errors
-						canTakeItem = hopperCanMoveItem(item)
+						local canTakeItem = hopperCanMoveItem(item)
 						if itemRef.use_mode == 0 and canTakeItem then
 							helpers.moveItemBuildings(aboveBuilding, hopperBuilding, i)
 							break

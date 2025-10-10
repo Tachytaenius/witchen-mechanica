@@ -267,3 +267,24 @@ function setItemMaterial(item, matType, matIndex)
 	item.flags.temps_computed = false
 	item.flags.weight_computed = false
 end
+
+function getSelectedSquad() -- TODO: Allow multiple?
+	if df.global.ui.main.mode ~= df.ui_sidebar_mode.Squads then
+		return nil, "wrongMode"
+	end
+	local ret
+	for i, selected in ipairs(df.global.ui.squads.sel_squads) do
+		if selected then
+			if ret then
+				return nil, "multiple"
+			else
+				ret = df.global.ui.squads.list[i]
+			end
+		end
+	end
+	if not ret then
+		return nil, "none"
+	else
+		return ret, "success"
+	end
+end

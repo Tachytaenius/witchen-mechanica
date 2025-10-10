@@ -120,10 +120,6 @@ function enable()
 		end
 	end
 
-	-- TEMP
-	local x, y, z = pos2xyz(df.global.cursor)
-	createAutomaton(x, y, z, dfhack.gui.getSelectedItem())
-
 	events.register("deathFlows", "onUnitDeath", deathFlowOnUnitDeath, "UNIT_DEATH", 1)
 	timekeeping.register("automata", onTick)
 end
