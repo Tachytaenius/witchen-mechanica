@@ -16,6 +16,7 @@ function doesBuildingCoverPos(building, x, y, z)
 		z == building.z
 end
 
+-- TODO: Cache buildings
 function getBuildingAt(x, y, z)
 	local _, occupancy = dfhack.maps.getTileFlags(x, y, z)
 	if not occupancy or occupancy.building == 0 then
@@ -74,6 +75,50 @@ function moveItemBuildings(fromBuilding, toBuilding, fromBuildingItemRefIndex, i
 	local itemBuildingRef = dfhack.items.getGeneralRef(itemRef.item, df.general_ref_type.BUILDING_HOLDER)
 
 	itemBuildingRef.building_id = toBuilding.id
+
+	return true
+end
+
+function moveItemFromBuildingToGround(item, x, y, z)
+	-- v50+ detachItem works when items are in buildings, but we're on v47
+
+	local building = dfhack.items.getHolderBuilding(item)
+	if not building then
+		return false
+	end
+
+	local position
+	if x and y and z then
+		position = xyz2pos(x, y, z)
+	else
+		position = xyz2pos(dfhack.items.getPosition(item))
+	end
+
+	-- Erase item link from building
+	for itemRefIndex, itemRef in ipairs(building.contained_items) do
+		if itemRef.item == item then
+			building.contained_items:erase(itemRefIndex)
+			itemRef:delete()
+			break
+		end
+	end
+	-- Erase building link from item
+	for i, ref in ipairs(item.general_refs) do
+		if ref._type == df.general_ref_building_holderst then
+			if ref.building_id == building.id then
+				item.general_refs:erase(i)
+				ref:delete()
+				break
+			end
+		end
+	end
+
+	item.pos.x = position.x
+	item.pos.y = position.y
+	item.pos.z = position.z
+	item.flags.on_ground = true
+	item.flags.in_building = false
+	item:moveToGround(position.x, position.y, position.z)
 
 	return true
 end
@@ -287,4 +332,62 @@ function getSelectedSquad() -- TODO: Allow multiple?
 	else
 		return ret, "success"
 	end
+end
+
+function findReactionByName(name)
+	for _, reaction in ipairs(df.global.world.raws.reactions.reactions) do
+		if reaction.code == name then
+			return reaction
+		end
+	end
+end
+
+-- Backported from later versions of DFHack
+function removeJobPostings(job, removeAll)
+	assert(job, "No job specified")
+	local world = df.global.world
+	local removed = false
+	if not removeAll then
+		if job.posting_index >= 0 and job.posting_index < #world.jobs.postings then
+			local posting = world.jobs.postings[job.posting_index]
+			posting.flags.dead = true
+			posting.job = nil
+			removed = true
+		end
+	else
+		for _, posting in ipairs(world.jobs.postings) do
+			if posting.job == job then
+				posting.flags.dead = true
+				posting.job = nil
+				removed = true
+			end
+		end
+	end
+	job.posting_index = -1
+	return removed
+end
+function canBeAddedToJob(unit)
+	if unit.job.current_job then
+		return false
+	end
+	return true
+end
+function addJobWorker(job, unit)
+	assert(job, "No job specified")
+	assert(unit, "No unit specified")
+
+	if not canBeAddedToJob(unit) then
+		return false
+	end
+
+	if job.posting_index ~= -1 then
+		removeJobPostings(job)
+	end
+
+	job.general_refs:insert("#", {new = df.general_ref_unit_workerst, unit_id = unit.id})
+	job.recheck_cntdn = 0
+
+	unit.job.current_job = job
+
+	return true
 end

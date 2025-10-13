@@ -11,6 +11,7 @@ local timekeeping = dfhack.reqscript("witchen-mechanica/timekeeping")
 local helpers = dfhack.reqscript("witchen-mechanica/helpers")
 
 local function ensureTurretSquadsTable()
+	helpers.ensurePersistStorage()
 	local modTable = persistTable.GlobalTable[consts.modKey]
 	modTable.turretSquads = modTable.turretSquads or {}
 end
@@ -37,47 +38,63 @@ function isTurretSquad(squad, alreadyEnsured)
 end
 
 -- Creating a squad_schedule_entry[12] to insert into the schedule vector is surprisingly hard (in v47) so we have this raw memory access stuff
--- Hopefully sufficiently cross-platform!
--- TODO: Test for 32-bit DF(Hack) and also test on Windows
+-- Credit to SilasD for this version of the idea
 -- TODO: Maybe search for any remaining crashes in the turret systems
-local function newScheduleBytes()
+local function newSchedule(positionCount)
+	-- Returns an array of 12 instances of a populated df.squad_schedule_entry
+	-- The return type is df.squad_schedule_entry, not df.squad_schedule_entry[12]
+
 	local months = 12
-	local entrySize = 64
-	local bytes = df.new("uint8_t", months * entrySize)
-	local _, bytesAddr = df.sizeof(bytes)
-	for i = 0, months * entrySize - 1 do
+	local entrySize = df.squad_schedule_entry:sizeof()
+	local bytesSize = months * entrySize
+	local bytes = df.new("uint8_t", bytesSize)
+	for i = 0, bytesSize - 1 do
 		bytes[i] = 0
 	end
+
+	local squadScheduleEntries = df.reinterpret_cast(df.squad_schedule_entry, bytes)
 	for i = 0, months - 1 do
-		local stringStart = bytesAddr + i * entrySize
-		local nameString = df.new("string")
-		local nameStringSize, nameStringAddr = df.sizeof(nameString)
-		dfhack.internal.memmove(stringStart, nameStringAddr, nameStringSize)
+		local assignments = {}
+		for _=1, positionCount do
+			table.insert(assignments, {new = true, value = -1})
+		end
+
+		local tempSquadScheduleEntry = df.squad_schedule_entry:new()
+		tempSquadScheduleEntry:assign({
+			new = true,
+			order_assignments = assignments
+		})
+
+		local thisSquadScheduleEntry = squadScheduleEntries:_displace(i)
+		local useAssign = false -- assign crashes on my machine so we will use memmove
+		if useAssign then
+			thisSquadScheduleEntry:assign(tempSquadScheduleEntry)
+		else
+			dfhack.internal.memmove(thisSquadScheduleEntry, tempSquadScheduleEntry, df.squad_schedule_entry:sizeof())
+		end
+		-- Don't delete tempSquadScheduleEntry, let it leak
 	end
-	return bytes
+	return squadScheduleEntries
 end
 local function fillSquadSchedules(squad)
-	local schedule = squad.schedule
 	local count = #df.global.ui.alerts.list
-	schedule:resize(count)
+	squad.schedule:resize(0) -- Clear schedule in case there were members. If there were members then this will leak memory, but there shouldn't be any anyway
+	squad.schedule:resize(count)
 
 	for scheduleVecIndex = 0, count - 1 do
-		-- I believe a vec is 3 * 8 bytes: beginning address, end (actual length) address, and end of capacity (resize) address
-		-- Make new squad_schedule_entry[12] and get put its address somewhere in memory for us to copy from
-		local scheduleBytes = newScheduleBytes()
-		local _, scheduleBytesAddress = df.sizeof(scheduleBytes)
-		local addressBytes = df.new("uint8_t", 8)
-		for i = 0, 7 do
-			addressBytes[i] = scheduleBytesAddress >> (i * 8) & 0xFF
-		end
-		-- Get address in the schedule vec's pointers to set
-		local scheduleAsAddresses = df.reinterpret_cast("uint64_t", schedule)
-		local scheduleVecStart = scheduleAsAddresses[0]
-		local destination = scheduleVecStart + scheduleVecIndex * 8
-		-- Copy address of new squad_schedule_entry[12] into the first element of the vector
-		dfhack.internal.memmove(destination, addressBytes, 8)
-		-- Delete addressBytes since we no longer need it
-		addressBytes:delete()
+		local schedule = newSchedule(#squad.positions)
+		local _, newScheduleAddress = schedule:sizeof()
+
+		-- A vector is 3 pointers: beginning address, end (actual length) address, and end of capacity (resize) address
+		-- Casting one as uint64_t or uint32_t lets us get raw access to those pointers
+		local uintSize = squad.schedule:sizeof() == 24 and "uint64_t" or "uint32_t" -- Depending on 64-bit or 32-bit DF (32-bit was tested (on Linux) and worked)
+		local vec = df.reinterpret_cast(uintSize, squad.schedule)
+		-- Get the first pointer from the vector
+		local beginningAddress = vec.value
+		-- Cast the number into a useful pointer type
+		beginningAddress = df.reinterpret_cast(uintSize, beginningAddress)
+
+		beginningAddress[scheduleVecIndex] = newScheduleAddress
 	end
 end
 function newTurretSquad(displayName, entity)
@@ -87,13 +104,13 @@ function newTurretSquad(displayName, entity)
 	squad.entity_id = entity.id
 	squad.unk_1 = -1 -- Army controller id
 	squad.alias = displayName
-	entity.squads:insert("#", squad.id)
-	df.global.world.squads.all:insert("#", squad)
-
 	fillSquadSchedules(squad)
 
 	ensureTurretSquadsTable()
 	persistTable.GlobalTable[consts.modKey].turretSquads[tostring(squad.id)] = "true"
+
+	df.global.world.squads.all:insert("#", squad)
+	entity.squads:insert("#", squad.id)
 end
 
 function getSelectedTurret()
@@ -416,8 +433,8 @@ function enable()
 	timekeeping.register("turrets", onTick)
 	buildingHacks.registerBuilding({
 		name = "WITCH_TURRET",
-		consume = 100,
-		needs_power = 100,
+		consume = 300,
+		needs_power = 300,
 		gears = {
 			{x = 2, y = 4}
 		},

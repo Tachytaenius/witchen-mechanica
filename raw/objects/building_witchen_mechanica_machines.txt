@@ -18,7 +18,7 @@ building_witchen_mechanica_machines
 
 	[BLOCK:1:0]
 
-	[TILE:0:1:"_"]
+	[TILE:0:1:'_']
 	[COLOR:0:1:MAT]
 
 	[TILE:1:1:25]

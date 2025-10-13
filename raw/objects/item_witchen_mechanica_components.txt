@@ -10,7 +10,7 @@ item_witchen_mechanica_components
 	[INCOMPLETE_ITEM]
 	[SIZE:10]
 	[MATERIAL_SIZE:1]
-	[VALUE:4]
+	[VALUE:10]
 
 [ITEM_TOOL:ITEM_TOOL_WITCH_TURRET_RECEIVER]
 	[NAME:turret receiver:turret receiver]
@@ -20,7 +20,7 @@ item_witchen_mechanica_components
 	[INVERTED_TILE]
 	[INCOMPLETE_ITEM]
 	[SIZE:1000]
-	[MATERIAL_SIZE:6]
+	[MATERIAL_SIZE:60]
 	[VALUE:5]
 
 [ITEM_TOOL:ITEM_TOOL_WITCH_TURRET_BARREL]
@@ -30,5 +30,14 @@ item_witchen_mechanica_components
 	[TILE:179]
 	[INCOMPLETE_ITEM]
 	[SIZE:500]
-	[MATERIAL_SIZE:3]
+	[MATERIAL_SIZE:10]
 	[VALUE:3]
+
+[ITEM_TOOL:ITEM_TOOL_AUTOMATON_ACCUMULATION_AXIS]
+	[NAME:automaton accumulation axis:automaton accumulation axes]
+	[DESCRIPTION:A solid spire that accumulates atmospheric material for creating sorcerised automata.]
+	[TILE:186]
+	[INCOMPLETE_ITEM]
+	[SIZE:1250]
+	[MATERIAL_SIZE:5]
+	[VALUE:30]

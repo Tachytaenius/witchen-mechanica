@@ -9,8 +9,6 @@ local consts = dfhack.reqscript("witchen-mechanica/consts")
 local helpers = dfhack.reqscript("witchen-mechanica/helpers")
 local timekeeping = dfhack.reqscript("witchen-mechanica/timekeeping")
 
--- TODO: Cache hopper adjacent buildings
-
 -- If two hoppers are stacked on top of each other, the one below will give its item further down, then
 -- take an item from the hopper above. Afterwards, the hopper above will give an item (likely nothing)
 -- to the hopper below, and then take an item from further above.
@@ -148,9 +146,11 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 									-- Don't break, we want the last item in the list (last in first out)
 								end
 							end
-							local item = itemToTakeRef:getItem()
-							if item and hopperCanMoveItem(item) then
-								helpers.moveItemContainerToBuilding(minecart, hopperBuilding, itemToTakeRefIndex)
+							if itemToTakeRef then
+								local item = itemToTakeRef:getItem()
+								if item and hopperCanMoveItem(item) then
+									helpers.moveItemContainerToBuilding(minecart, hopperBuilding, itemToTakeRefIndex)
+								end
 							end
 						end
 					end
