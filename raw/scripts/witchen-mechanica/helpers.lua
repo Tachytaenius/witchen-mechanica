@@ -1,5 +1,6 @@
 --@module = true
 
+local utils = require("utils")
 local persistTable = require("persist-table")
 
 local consts = dfhack.reqscript("witchen-mechanica/consts")
@@ -9,22 +10,61 @@ if not rng then
 	rng:init()
 end
 
+local function normalizeXYZ(x, y, z)
+	if y == nil and z == nil then
+		-- presume that x is a table{x=#, y=#, z=#} or any DF object with x, y, z fields.
+		x, y, z = pos2xyz(x)
+	end
+	return x, y, z
+end
+
 function doesBuildingCoverPos(building, x, y, z)
+	x, y, z = normalizeXYZ(x, y, z)
 	return
+		not df.building_civzonest:is_instance(building) and
 		building.x1 <= x and x <= building.x2 and
 		building.y1 <= y and y <= building.y2 and
 		z == building.z
 end
 
--- TODO: Cache buildings
+
+-- building cache strategy:
+-- * the cache is keyed on a string composed from x, y, and z.
+-- * the keys have values that are indexes into the world.buildings.all vector.
+-- * the cache is checked before probing every building.
+-- * if there is a cache hit, the building at world.buildings.all[index] is checked
+--   against the doesBuildingCoverPos(building, x, y, z) function.
+-- * that call is expected to return true, but in the case of a stale cache, it can return false.
+-- * the cache will get stale when buildings are destroyed; that's okay.
+local building_cache = {}
+local building_cache_hits, building_cache_misses, building_cache_stale = 0,0,0
 function getBuildingAt(x, y, z)
+	x, y, z = normalizeXYZ(x, y, z)
 	local _, occupancy = dfhack.maps.getTileFlags(x, y, z)
 	if not occupancy or occupancy.building == 0 then
 		return nil
 	end
 
-	for _, building in ipairs(df.global.world.buildings.all) do
+	local key = string.format("%d,%d,%d", x, y, z)
+	local index = building_cache[key]
+	if index ~= nil and index < #df.global.world.buildings.all then
+		local building = df.global.world.buildings.all[index]
 		if doesBuildingCoverPos(building, x, y, z) then
+			building_cache_hits = building_cache_hits + 1
+			return building
+		else
+			dfhack.printerr("Note: building_cache stale at index " .. index .. "; clearing entry.")  --!
+			building_cache_stale = building_cache_stale + 1
+			building_cache[key] = nil
+		end
+	end
+
+	for index, building in ipairs(df.global.world.buildings.all) do
+		if doesBuildingCoverPos(building, x, y, z) then
+			building_cache_misses = building_cache_misses + 1
+			building_cache[key] = index
+			dfhack.printerr("new building_cache entry: " .. key .. " -> index " .. index ..   --!
+				" -> " .. utils.getBuildingName(building))   --!
 			return building
 		end
 	end
