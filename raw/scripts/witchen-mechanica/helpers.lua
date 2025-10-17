@@ -391,3 +391,36 @@ function addJobWorker(job, unit)
 
 	return true
 end
+
+function spawnUnit(raceName, casteName, x, y, z)
+	local expectedId = df.global.unit_next_id
+
+	local raceId, casteId
+	for i, raceRaw in ipairs(df.global.world.raws.creatures.all) do
+		if raceRaw.creature_id == raceName then
+			raceId = i
+
+			for j, casteRaw in ipairs(raceRaw.caste) do
+				if casteRaw.caste_id == casteName then
+					casteId = j
+					break
+				end
+			end
+
+			break
+		end
+	end
+
+	if not raceId then
+		error("Invalid race " .. raceName)
+	end
+	if not casteId then
+		error("Invalid caste " .. casteName)
+	end
+
+	dfhack.run_command("summon " .. table.concat({raceId, casteId, x, y, z}, " "))
+
+	if df.global.unit_next_id == expectedId + 1 then
+		return df.unit.find(expectedId)
+	end
+end

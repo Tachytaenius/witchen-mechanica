@@ -161,36 +161,16 @@ local function onTick()
 end
 
 function createAutomaton(x, y, z, core, languageId, civId)
-	local name = "Automaton (#" .. df.global.unit_next_id .. ")" -- Better to let the user choose the name. Opening a UI on automaton creation would actually solve the create-unit black screen flash problem
-
-	-- TODO: What about advfort (adventure mode), will domestication work?
-	local createdUnits = createUnit.createUnit(
-		"WITCH_AUTOMATON", -- raceStr,
-		nil, -- casteStr,
-		{x = x, y = y, z = z}, -- pos,
-		nil, -- locationRange,
-		nil, -- locationType,
-		0, -- age,
-		true, -- domesticate,
-		civId, -- civ_id,
-		nil, -- group_id,
-		nil, -- entityRawName,
-		nil, -- nickname,
-		nil, -- vanishDelay,
-		nil, -- quantity,
-		nil, -- equip,
-		nil, -- skills,
-		nil, -- profession,
-		nil, -- customProfession,
-		nil, -- flagSet,
-		{ -- flagClear
-			"scuttle"
-		}
-	)
-	local newAutomaton = createdUnits[1]
+	local newAutomaton = helpers.spawnUnit("WITCH_AUTOMATON", "DEFAULT", x, y, z) -- modtools/create-unit can cause crashes if run when core is suspended (like in a job hook)
 	if not newAutomaton then
 		return
 	end
+	local name = "Automaton (#" .. newAutomaton.id .. ")" -- TODO: Bring up naming screen?
+	newAutomaton.flags3.scuttle = false
+	newAutomaton.civ_id = civId
+	createUnit.setAge(newAutomaton, 0)
+	createUnit.induceBodyComputations(newAutomaton)
+	createUnit.domesticateUnit(newAutomaton) -- TODO: What about advfort (adventure mode), will domestication work?
 	if languageId then
 		local function setName(nameStruct)
 			nameStruct.first_name = name
@@ -313,8 +293,8 @@ function enable()
 	end
 	buildingHacks.registerBuilding({
 		name = "AUTOMATON_SUMMONARY",
-		consume = 80,
-		needs_power = 80,
+		consume = 120,
+		needs_power = 120,
 		gears = {
 			{x = 2, y = 0}
 		},
