@@ -16,7 +16,8 @@ creature_witchen_mechanica_automaton
 	[WITCHEN_MECHANICA_NOT_WAGON] Then this will unset the actual EQUIPMENT_WAGON flag so that they aren't used as caravan wagons. NOTE: scuttle flag must also be removed
 	They also need to be domesticated to avoid randomly attacking people
 	(WITCHEN_MECHANICA_DEATH_FLOW:10:Smoke:NONE:NONE) Disabled because they vanish, producing smoke (too much but we can maybe fix that later)
-	[WITCHEN_MECHANICA_IS_AUTOMATON]
+	(WITCHEN_MECHANICA_REENABLE_SLEEP) So that we can deactivate them when they aren't powered using sleep. Except, we're using the unconsciousness timer now, which seems to work fine whether this is or isn't true. So this token is also disabled.
+	[WITCHEN_MECHANICA_IS_AUTOMATON] Enter automaton update function
 	[WITCHEN_MECHANICA_AUTOMATON_REQUIRED_TOOL:ITEM_TOOL_MECHANICORE:SewnInto:CORE_RECEPTACLE]
 
 	[BODY:WITCH_AUTOMATON_BODY:WITCH_AUTOMATON_CORE_RECEPTACLE:WITCH_AUTOMATON_IO_SYSTEMS]

@@ -206,19 +206,11 @@ function removeSelectedTurretFromSelectedSquad()
 	end
 end
 
-local function getDistance(aPos, bPos)
-	return math.sqrt(
-		(bPos.x - aPos.x) ^ 2 +
-		(bPos.y - aPos.y) ^ 2 +
-		(bPos.z - aPos.z) ^ 2
-	)
-end
-
 local function canTurretFireAmmo(turret, item)
 	if item._type ~= df.item_ammost then
 		return false
 	end
-	return customRawTokens.getToken(item, "WITCHEN_MECHANICA_HEXED_TURRET_FIREABLE")
+	return customRawTokens.getToken(item, "WITCHEN_MECHANICA_HEX_TURRET_FIREABLE")
 end
 
 local function getTurretStats(turret, item)
@@ -268,6 +260,8 @@ local function fireTurret(turret, unit)
 	local unitPos = xyz2pos(dfhack.units.getPosition(unit))
 
 	local stats = getTurretStats(turret)
+
+	-- Move ammo to ground
 	for i, ref in ipairs(ammoItem.general_refs) do
 		if ref._type == df.general_ref_building_holderst then
 			turret.contained_items:erase(ammoItemIndex)
@@ -277,6 +271,7 @@ local function fireTurret(turret, unit)
 		end
 	end
 
+	-- Make projectile
 	local projectile = dfhack.items.makeProjectile(ammoItem)
 	projectile.origin_pos = utils.clone(turretShootPos)
 	projectile.target_pos = utils.clone(unitPos)
@@ -288,31 +283,47 @@ local function fireTurret(turret, unit)
 	projectile.bow_id = -1 -- Unless we want to specify a gun item id from the building
 	projectile.hit_rating = stats.hitRating
 
+	-- Set cooldown
+	helpers.setNumberInFlags(turret.machine.flags, consts.turretCooldownTimerLength, consts.turretCooldownMachineInfoBitsStart, consts.turretCooldownMachineInfoBitsEnd)
+
+	-- Spawn flow
+	-- In this part of the code we used to just spawn a flow with material determined by the item, now we are also spawning general magic flow that many things in this mod will do
+	-- So it may look a bit odd
 	local flowDimension, flowTypeName, materialArgA, materialArgB, materialArgC, materialArgD =
-		customRawTokens.getToken(projectile.item, "WITCHEN_MECHANICA_HEXED_TURRET_SHOOT_FLOW")
+		customRawTokens.getToken(projectile.item, "WITCHEN_MECHANICA_HEX_TURRET_SHOOT_FLOW")
 	flowDimension = tonumber(flowDimension) or 0
-	-- TODO: Prevent flow from spawning inside of tiles and creating spatter (which might cause units to clean in front of the turret and get killed)
-	if flowDimension > 0 then
-		local matToken = table.concat({materialArgA, materialArgB, materialArgC, materialArgD}, ":") -- Avoid passing trailing nils to matinfo.find as it will error
-		local matInfo = dfhack.matinfo.find(matToken)
-		local matType, matIndex = matInfo and matInfo.type or -1, matInfo and matInfo.index or -1
-		local flowPosition = {}
-		do
-			local opos, tpos = projectile.origin_pos, projectile.target_pos
-			local x, y, z = tpos.x-opos.x, tpos.y-opos.y, tpos.z-opos.z
-			local mag = math.sqrt(x^2+y^2+z^2)
-			if mag > 0 then 
-				x, y, z = x * consts.smokeEffectDistanceFromFirer / mag, y * consts.smokeEffectDistanceFromFirer / mag, z * consts.smokeEffectDistanceFromFirer / mag
-				flowPosition.x, flowPosition.y, flowPosition.z = math.floor(x+0.5) + opos.x, math.floor(y+0.5) + opos.y, math.floor(z+0.5) + opos.z
-			else
-				flowPosition.x, flowPosition.y, flowPosition.z = opos.x, opos.y, opos.z
-			end
+	local matToken = table.concat({materialArgA, materialArgB, materialArgC, materialArgD}, ":") -- Avoid passing trailing nils to matinfo.find as it will error
+	local matInfo = dfhack.matinfo.find(matToken)
+	local matType, matIndex = matInfo and matInfo.type or -1, matInfo and matInfo.index or -1
+	local flowPosition = {}
+	do
+		-- We prevent flow from spawning inside of tiles and creating spatter (which might cause units to clean in front of the turret and get killed) by ignoring z.
+		local smokeEffectDistanceFromFirer = 1.9 -- The flow will be spawned within the building's tiles, which is definitely safe.
+		local opos, tpos = projectile.origin_pos, projectile.target_pos
+		flowPosition.z = opos.z
+		local x, y = tpos.x-opos.x, tpos.y-opos.y
+		local mag = math.sqrt(x^2+y^2)
+		if mag > 0 then
+			x, y = x * smokeEffectDistanceFromFirer / mag, y * smokeEffectDistanceFromFirer / mag
+			flowPosition.x, flowPosition.y = math.floor(x+0.5) + opos.x, math.floor(y+0.5) + opos.y
+		else
+			flowPosition.x, flowPosition.y = opos.x, opos.y
 		end
+	end
+	if flowDimension > 0 then
 		dfhack.maps.spawnFlow(flowPosition, df.flow_type[flowTypeName], matType, matIndex, flowDimension)
 	end
+	helpers.createMagicPuff(flowPosition, consts.turretMagicPuffSize)
 end
 
 local function handleTurret(turretBuilding, killList)
+	local cooldownTimer = helpers.getNumberInFlags(turretBuilding.machine.flags, consts.turretCooldownMachineInfoBitsStart, consts.turretCooldownMachineInfoBitsEnd)
+	if cooldownTimer ~= 0 then
+		cooldownTimer = math.max(0, cooldownTimer - 1)
+		helpers.setNumberInFlags(turretBuilding.machine.flags, cooldownTimer, consts.turretCooldownMachineInfoBitsStart, consts.turretCooldownMachineInfoBitsEnd)
+		return
+	end
+
 	if #killList == 0 then
 		return
 	end
@@ -324,7 +335,7 @@ local function handleTurret(turretBuilding, killList)
 		if dfhack.units.isKilled(unit) then
 			goto continue
 		end
-		if dfhack.units.isHidden(unit) then -- TODO: Anti-sneak upgrade?
+		if dfhack.units.isHidden(unit) then
 			goto continue
 		end
 
@@ -334,7 +345,7 @@ local function handleTurret(turretBuilding, killList)
 		end
 
 		local unitPos = xyz2pos(x, y, z)
-		local unitDistance = getDistance(shootPos, unitPos)
+		local unitDistance = helpers.getDistance(shootPos, unitPos)
 
 		if not closestUnit or unitDistance < closestUnitDistance then
 			closestUnit = unit

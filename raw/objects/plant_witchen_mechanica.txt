@@ -1,0 +1,79 @@
+plant_witchen_mechanica
+
+[OBJECT:PLANT]
+
+[PLANT:GLASSGRASS]
+	[NAME:glassgrass plant]
+	[NAME_PLURAL:glassgrass plants]
+	[ADJ:glassgrass plant]
+	[PREFSTRING:magical properties]
+	[PREFSTRING:scintillating sheen]
+	[PREFSTRING:glistering lustre]
+	[CLUSTERSIZE:2]
+	[VALUE:4]
+	[WINTER]
+	[SPRING]
+	Shrub info
+		[GROWDUR:400]
+		[PICKED_TILE:'*']
+		[PICKED_COLOR:2:0:1]
+		[SHRUB_TILE:'*']
+		[SHRUB_COLOR:2:0:1]
+		[SHRUB_DROWN_LEVEL:5]
+	Materials and their uses
+		TODO: Make the materials more like glass
+		Roots
+		[USE_MATERIAL_TEMPLATE:STRUCTURAL:STRUCTURAL_PLANT_TEMPLATE]
+			Indented tokens here same as mill:
+				[STATE_COLOR:ALL_SOLID:GREEN]
+				[DISPLAY_COLOR:2:0:0]
+				[STATE_COLOR:LIQUID:RED]
+				[STATE_COLOR:GAS:RED]
+				[SOLID_DENSITY:2600]
+			[MATERIAL_VALUE:2]
+			[MATERIAL_REACTION_PRODUCT:SEED_MAT:LOCAL_PLANT_MAT:SEED]
+			[MATERIAL_REACTION_PRODUCT:FLOUR_MAT:LOCAL_PLANT_MAT:MILL] For use with Modest Mod
+		[BASIC_MAT:LOCAL_PLANT_MAT:STRUCTURAL]
+		Seeds
+		[USE_MATERIAL_TEMPLATE:SEED:SEED_TEMPLATE]
+			[SOLID_DENSITY:3000]
+			[STATE_COLOR:ALL_SOLID:DARK_BLUE]
+			[DISPLAY_COLOR:1:0:0]
+		[SEED:glassgrass marble:glassgrass marbles:7:0:0:LOCAL_PLANT_MAT:SEED]
+		Thread
+		[USE_MATERIAL_TEMPLATE:THREAD:THREAD_PLANT_TEMPLATE]
+			[STATE_NAME:SOLID:glassgrass chromatic fibre]
+			[STATE_NAME_ADJ:SOLID:glassgrass chromatic fibre]
+			[PREFIX:NONE]
+			[MATERIAL_VALUE:4]
+			[REACTION_CLASS:CHROMATIC_FIBRE]
+			[DISPLAY_COLOR:5:0:1]
+		(THREAD:LOCAL_PLANT_MAT:THREAD) Instead of doing this (for processing plants at a farmer's workshop), we're going to make the plants millable and then have a reaction to turn the mill powder into thread.
+		Mill
+		[USE_MATERIAL_TEMPLATE:MILL:PLANT_POWDER_TEMPLATE]
+			[STATE_NAME:ALL_SOLID:glassgrass root grit]
+			[STATE_ADJ:ALL_SOLID:glassgrass root grit]
+			[PREFIX:NONE]
+			Indented tokens here same as structural:
+				[STATE_COLOR:ALL_SOLID:GREEN]
+				[DISPLAY_COLOR:2:0:0]
+				[STATE_COLOR:LIQUID:RED]
+				[STATE_COLOR:GAS:RED]
+				[SOLID_DENSITY:2600]
+			[MATERIAL_VALUE:3]
+			[MATERIAL_REACTION_PRODUCT:PROCESS_TO_CHROMATIC_FIBRE:LOCAL_PLANT_MAT:THREAD]
+		[MILL:LOCAL_PLANT_MAT:MILL]
+		Aboveground stalks/stems/leaves
+		[USE_MATERIAL_TEMPLATE:LEAF:LEAF_TEMPLATE]
+			[STATE_COLOR:ALL_SOLID:CLEAR]
+			[STATE_COLOR:LIQUID:RED]
+			[STATE_COLOR:GAS:RED]
+			[DISPLAY_COLOR:3:0:1]
+			[MATERIAL_VALUE:3]
+			[SOLID_DENSITY:2400]
+			[STOCKPILE_PLANT_GROWTH]
+		[GROWTH:LEAVES]
+			[GROWTH_NAME:glassgrass blade:glassgrass blades]
+			[GROWTH_ITEM:PLANT_GROWTH:NONE:LOCAL_PLANT_MAT:LEAF]
+			[GROWTH_DENSITY:1500]
+			[GROWTH_PRINT:251:'/':3:0:1:ALL:1]

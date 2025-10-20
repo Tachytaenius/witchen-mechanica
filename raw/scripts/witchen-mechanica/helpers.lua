@@ -1,6 +1,7 @@
 --@module = true
 
 local persistTable = require("persist-table")
+local customRawTokens = require("custom-raw-tokens")
 
 local consts = dfhack.reqscript("witchen-mechanica/consts")
 
@@ -422,5 +423,100 @@ function spawnUnit(raceName, casteName, x, y, z)
 
 	if df.global.unit_next_id == expectedId + 1 then
 		return df.unit.find(expectedId)
+	end
+end
+
+function canMachinePassThroughFloor(x, y, z)
+	-- Return false if not a valid tile
+	local tiletype = dfhack.maps.getTileType(x, y, z)
+	if not tiletype then
+		return false
+	end
+	-- Return true if open space
+	local tileShapeAttrs = df.tiletype_shape.attrs[
+		df.tiletype.attrs[tiletype].shape
+	]
+	if tileShapeAttrs.basic_shape == df.tiletype_shape_basic.Open then
+		return true
+	end
+
+	-- Return false if not phasing block (lunium) construction
+	local construction = dfhack.constructions.findAtTile(x, y, z)
+	if not construction then
+		return false
+	end
+
+	if construction.item_type ~= df.item_type.BLOCKS then
+		return false
+	end
+
+	if construction.mat_type ~= 0 then -- Not an inorganic
+		return false
+	end
+
+	local inorganic = df.inorganic_raw.find(construction.mat_index)
+	if not inorganic then
+		return false
+	end
+
+	return customRawTokens.getToken(inorganic, "WITCHEN_MECHANICA_PHASING")
+end
+
+function getDistance(x1, y1, z1, x2, y2, z2)
+	-- Allow passing in two objects with x y z fields
+	if type(x1) ~= "number" then
+		local aPos = x1
+		local bPos = y1
+		return math.sqrt(
+			(bPos.x - aPos.x) ^ 2 +
+			(bPos.y - aPos.y) ^ 2 +
+			(bPos.z - aPos.z) ^ 2
+		)
+	end
+
+	return math.sqrt(
+			(x2 - x1) ^ 2 +
+			(y2 - y1) ^ 2 +
+			(z2 - z1) ^ 2
+		)
+end
+
+function getMat(token)
+	local matinfo = dfhack.matinfo.find(token)
+	if not matinfo then
+		return
+	end
+	return matinfo.type, matinfo.index
+end
+
+function createMagicPuff(position, amount)
+	-- Would use vapour or dust here but the dust/vapour flows settle into spatter
+	local aAmount = amount
+	local aMatType, aMatIndex = getMat("INORGANIC:MAGINCIUM")
+	local aType = df.flow_type.MaterialGas
+	dfhack.maps.spawnFlow(position, aType, aMatType, aMatIndex, aAmount)
+
+	local bAmount = math.floor(amount / 4)
+	if bAmount > 0 then
+		local bMatType, bMatIndex = getMat("INORGANIC:ZEFRANNIUM")
+		local bType = df.flow_type.MaterialGas
+		dfhack.maps.spawnFlow(position, bType, bMatType, bMatIndex, bAmount)
+	end
+end
+
+function getNumberInFlags(flags, startBit, endBit)
+	local total = 0
+	for i = startBit, endBit do
+		if flags[i] then
+			total = total + 2 ^ (i - startBit)
+		end
+	end
+	return total
+end
+
+function setNumerInFlags(flags, number, startBit, endBit)
+	for i = startBit, endBit do
+		local mask = 2 ^ (i - startBit)
+		flags[i] = bit32.band(number, mask) ~= 0
 	end
 end

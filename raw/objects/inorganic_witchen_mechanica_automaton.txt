@@ -2,8 +2,6 @@ inorganic_witchen_mechanica_automaton
 
 [OBJECT:INORGANIC]
 
-TODO: State names
-
 [INORGANIC:AUTOMATON_DUST]
 	[USE_MATERIAL_TEMPLATE:STONE_TEMPLATE]
 	[MELTING_POINT:NONE]

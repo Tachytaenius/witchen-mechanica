@@ -9,6 +9,7 @@ local createUnit = dfhack.reqscript("modtools/create-unit")
 local timekeeping = dfhack.reqscript("witchen-mechanica/timekeeping")
 local events = dfhack.reqscript("witchen-mechanica/events")
 local helpers = dfhack.reqscript("witchen-mechanica/helpers")
+local consts = dfhack.reqscript("witchen-mechanica/consts")
 
 local function deathFlowOnUnitDeath(unitId)
 	local unit = df.unit.find(unitId)
@@ -65,12 +66,22 @@ end
 
 local function workOnCurrentJob(automatonUnit)
 	-- The game is surprisingly compliant with our vision here. The automata actually do jobs.
-	-- So... TODO: Cool spark effects...?
+	-- So we will just add some effects.
+	local position = xyz2pos(dfhack.units.getPosition(automatonUnit))
+	if not position then
+		return
+	end
+	if helpers.rng:drandom() < consts.automatonWorkSmallMagicPuffChance then
+		helpers.createMagicPuff(position, consts.automatonWorkSmallMagicPuffSize)
+	elseif helpers.rng:drandom() < consts.automatonWorkSmallMagicPuffChance then
+		helpers.createMagicPuff(position, consts.automatonWorkLargeMagicPuffSize)
+	end
 end
 
 local workableBuildingTypes = utils.invert({
 	df.building_workshopst,
-	df.building_furnacest
+	df.building_furnacest,
+	df.building_trapst
 })
 
 function automatonWorkAtBuildingEnabled(automatonUnit, building)
@@ -82,6 +93,22 @@ function automatonWorkAtBuildingEnabled(automatonUnit, building)
 		return false
 	end
 	return true
+end
+
+-- A few ideas were tested. In the end we abandoned the method of unsetting NO_SLEEP and setting sleepiness_counter.
+-- Setting on_ground ourselves seems to make the on ground status more consistent when paused or unpaused.
+-- Ideally we could stop the game from unsetting unconscious mid-tick, not sure how to do that without using normal sleep which creates jobs and thus cancel spam when pasturing a unit, or doing something horrible like causing a painful wound (and unsetting the no pain flag).
+local function automatonActivate(automatonUnit)
+	-- Repeatedly called when powered
+	-- automatonUnit.counters2.sleepiness_timer = 0
+	automatonUnit.counters.unconscious = 0
+	automatonUnit.flags1.on_ground = false
+end
+local function automatonDeactivate(automatonUnit)
+	-- Repeatedly called when unpowered
+	-- automatonUnit.counters2.sleepiness_timer = 100000
+	automatonUnit.counters.unconscious = 1000
+	automatonUnit.flags1.on_ground = true
 end
 
 local function automatonWork(automatonUnit)
@@ -144,17 +171,86 @@ local function automatonWork(automatonUnit)
 	helpers.addJobWorker(jobToWorkOn, automatonUnit)
 end
 
-local function updateAutomaton(automatonUnit)
+local function updateAutomaton(automatonUnit, powerLocations)
 	automatonKillCheck(automatonUnit)
 	-- TODO: Wipe soul struct. Apparently they can experience trauma etc
-	automatonWork(automatonUnit)
+	-- TODO: Wipe physical attributes too
+	-- TODO: Zero fat? Or do so on creation?
+
+	local position = xyz2pos(dfhack.units.getPosition(automatonUnit))
+	local powered = false
+	if position then
+		for _, powerLocation in ipairs(powerLocations) do
+			-- Keep it to a cuboid for easier area coverage. Would be a sphere with the condition below
+			-- helpers.getDistance(position, powerLocation) <= powerLocation.radius
+			local diffX, diffY, diffZ = position.x - powerLocation.x, position.y - powerLocation.y, position.z - powerLocation.z
+			if math.max(math.abs(diffX), math.abs(diffY), math.abs(diffZ)) <= powerLocation.radius then
+				powered = true
+				break
+			end
+		end
+	end
+
+	if powered then
+		automatonActivate(automatonUnit)
+		automatonWork(automatonUnit)
+	else
+		automatonDeactivate(automatonUnit)
+	end
 end
 
 local function onTick()
+	local powerLocations = {}
+	for _, building in ipairs(df.global.world.buildings.other.WORKSHOP_CUSTOM) do
+		if not building:isActual() then
+			goto continue
+		end
+		local customType = df.building_def.find(building.custom_type)
+		if not customType then
+			goto continue
+		end
+		if customType.code ~= "AUTOMATON_PYLON_BASE" then
+			goto continue
+		end
+		if building:isUnpowered() then
+			goto continue
+		end
+
+		-- Find tile above pylon base centre
+		-- centerx and centery refer to the work location, so we calculate the centre ourselves
+		local ox, oy = math.floor(customType.dim_x / 2), math.floor(customType.dim_y / 2)
+		local x, y, z = building.x1 + ox, building.y1 + oy, building.z + 1
+
+		-- Phasing floor required
+		if not helpers.canMachinePassThroughFloor(x, y, z) then
+			goto continue
+		end
+		-- Pylon top required
+		local topBuilding = helpers.getBuildingAt(x, y, z)
+		if not topBuilding then
+			goto continue
+		end
+		local topCustomType = df.building_def.find(topBuilding.custom_type)
+		if not topCustomType then
+			goto continue
+		end
+		if topCustomType.code ~= "AUTOMATON_PYLON_TOP" then
+			goto continue
+		end
+
+		-- Add power location at pylon top
+		table.insert(powerLocations, {
+			x = x, y = y, z = z,
+			radius = consts.automatonPylonRadius
+		})
+
+		::continue::
+	end
+
 	for _, unit in ipairs(df.global.world.units.active) do
 		if dfhack.units.isActive(unit) then
 			if customRawTokens.getToken(unit, "WITCHEN_MECHANICA_IS_AUTOMATON") then
-				updateAutomaton(unit)
+				updateAutomaton(unit, powerLocations)
 			end
 		end
 	end
@@ -168,6 +264,7 @@ function createAutomaton(x, y, z, core, languageId, civId)
 	local name = "Automaton (#" .. newAutomaton.id .. ")" -- TODO: Bring up naming screen?
 	newAutomaton.flags3.scuttle = false
 	newAutomaton.civ_id = civId
+	-- TODO: Uniform sizes(?) etc(?)
 	createUnit.setAge(newAutomaton, 0)
 	createUnit.induceBodyComputations(newAutomaton)
 	createUnit.domesticateUnit(newAutomaton) -- TODO: What about advfort (adventure mode), will domestication work?
@@ -268,18 +365,25 @@ function enable()
 			creature.flags.EQUIPMENT_WAGON = false
 			-- Assume EQUIPMENT, NOPAIN, etc are true because of [EQUIPMENT_WAGON]
 		end
+		for casteNumber, caste in ipairs(creature.caste) do
+			if customRawTokens.getToken(creature, casteNumber, "WITCHEN_MECHANICA_REENABLE_SLEEP") then
+				-- This is no longer used, since the unconsciousness counter works fine regardless
+				caste.flags.NO_SLEEP = false
+			end
+		end
 	end
 
 	events.register("deathFlows", "onUnitDeath", deathFlowOnUnitDeath, "UNIT_DEATH", 1)
 	events.register("automatonCreation", "onJobCompleted", onConstructAutomatonJob, "JOB_COMPLETED", 0)
 	timekeeping.register("automata", onTick)
 
-	local rng = dfhack.random.new()
-	rng:init(0)
+	-- Construct the frames for the automaton summonary
+	local animRNG = dfhack.random.new() -- Random generator for the animation
+	animRNG:init(0)
 	local frames = {}
 	for i = 1, 50 do
-		local leftColour = rng:drandom() < 0.5 and "lightRed" or (rng:drandom() < 1 / 3 and "black" or "red")
-		local rightColour = rng:drandom() < 0.5 and "lightRed" or (rng:drandom() < 1 / 3 and "black" or "red")
+		local leftColour = animRNG:drandom() < 0.5 and "lightRed" or (animRNG:drandom() < 1 / 3 and "black" or "red")
+		local rightColour = animRNG:drandom() < 0.5 and "lightRed" or (animRNG:drandom() < 1 / 3 and "black" or "red")
 		frames[i] = {
 			{
 				x = 1, y = 0,
@@ -303,14 +407,83 @@ function enable()
 			frames = frames
 		}
 	})
+
+	-- Construct the frames for the sorcerous pylon base
+	local positions = {
+		{1, 1},
+		{2, 1},
+		{3, 1},
+		{3, 2},
+		{3, 3},
+		{2, 3},
+		{1, 3},
+		{1, 2}
+	}
+	local chars = {
+		[1] = {
+			[1] = 218,
+			[2] = 179,
+			[3] = 192
+		},
+		[2] = {
+			[1] = 196,
+			[3] = 196
+		},
+		[3] = {
+			[1] = 191,
+			[2] = 179,
+			[3] = 217
+		}
+	}
+	local chain = {
+		{4, 0, 1},
+		{5, 0, 1},
+		{1, 0, 1},
+		{7, 0, 1, char = 249},
+		{3, 0, 1},
+		{2, 0, 1},
+		{6, 0, 1},
+		{7, 0, 1, char = 249}
+	}
+	local frames = {}
+	for frameNum = 1, 8 do
+		local frame = {}
+		frames[frameNum] = frame
+		for positionNumber, position in ipairs(positions) do
+			local x, y = position[1], position[2]
+			local chainIndex = ((frameNum - 1) + (positionNumber - 1)) % 8 + 1
+			local chainEntry = chain[chainIndex]
+			local char = chainEntry.char or chars[x][y]
+			table.insert(frame, {
+				x = x, y = y,
+				char, table.unpack(chainEntry)
+			})
+		end
+	end
+	buildingHacks.registerBuilding({
+		name = "AUTOMATON_PYLON_BASE",
+		consume = 500,
+		needs_power = 500,
+		gears = {
+			{x = 2, y = 0},
+			{x = 0, y = 2},
+			{x = 4, y = 2},
+			-- {x = 2, y = 4} Replaced with the work location.
+		},
+		animate = {
+			frameLength = 16,
+			frames = frames
+		}
+	})
 end
 
 function disable()
-	-- Assume unloading world, do nothing regarding the WITCHEN_MECHANICA_NOT_WAGON custom raw token
+	-- Assume unloading world, do nothing regarding the WITCHEN_MECHANICA_NOT_WAGON custom raw token etc
 
 	events.unregister("deathFlows", "onUnitDeath")
 	events.unregister("automatonCreation", "onJobCompleted")
 	timekeeping.unregister("automata")
 
 	buildingHacks.registerBuilding({name = "AUTOMATON_SUMMONARY"})
+	buildingHacks.registerBuilding({name = "AUTOMATON_PYLON_BASE"})
 end

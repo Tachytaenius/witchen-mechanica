@@ -3,7 +3,6 @@ enableable = true -- Not in the sense of the enable command
 
 local buildingHacks = require("plugins.building-hacks")
 local utils = require("utils")
-local customRawTokens = require("custom-raw-tokens")
 
 local consts = dfhack.reqscript("witchen-mechanica/consts")
 local helpers = dfhack.reqscript("witchen-mechanica/helpers")
@@ -33,38 +32,6 @@ function isBuildingHopperInteractable(building)
 		return true
 	end
 	return false
-end
-
-function canHopperPassThroughTile(x, y, z)
-	-- Return true if open space
-	local tiletype = dfhack.maps.getTileType(x, y, z)
-	local tileShapeAttrs = df.tiletype_shape.attrs[
-		df.tiletype.attrs[tiletype].shape
-	]
-	if tileShapeAttrs.basic_shape == df.tiletype_shape_basic.Open then
-		return true
-	end
-
-	-- Return false if not phasing block (lunium) construction
-	local construction = dfhack.constructions.findAtTile(x, y, z)
-	if not construction then
-		return false
-	end
-
-	if construction.item_type ~= df.item_type.BLOCKS then
-		return false
-	end
-
-	if construction.mat_type ~= 0 then -- Not an inorganic
-		return false
-	end
-
-	local inorganic = df.inorganic_raw.find(construction.mat_index)
-	if not inorganic then
-		return false
-	end
-
-	return customRawTokens.getToken(inorganic, "WITCHEN_MECHANICA_PHASING")
 end
 
 function hopperCanMoveItem(item)

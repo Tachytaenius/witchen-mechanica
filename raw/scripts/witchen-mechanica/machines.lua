@@ -8,7 +8,8 @@ local timekeeping = dfhack.reqscript("witchen-mechanica/timekeeping")
 machines = utils.invert({
 	"WITCH_HOPPER",
 	"WITCH_TURRET",
-	"AUTOMATON_SUMMONARY"
+	"AUTOMATON_SUMMONARY",
+	"AUTOMATON_PYLON_BASE"
 })
 
 local function onTick()
