@@ -8,7 +8,6 @@ Usage
 
 enable witchen-mechanica
 disable witchen-mechanica
-
 ]]
 
 enabled = enabled or false
@@ -17,20 +16,21 @@ function isEnabled()
 	return enabled
 end
 
-local loadedModuleList, loadedModulesByName, loadedModuleNames = {}, {}, {}
-for _, name in ipairs(  -- All module names go here. Order should determine order of running
-([[
-	consts
-	helpers
-	timekeeping
-	events
-	reactions
-	machines
-	hoppers
-	turrets
-	automata
-]]):trim():split( "[,%s]+" )  -- remove leading/trailing whitespace, then split on whitespace.
-) do
+local loadedModuleList = {}
+local loadedModulesByName = {}
+local loadedModuleNames = {}
+for _, name in ipairs({
+	-- All module names go here. Order should determine order of running
+	"consts",
+	"helpers",
+	"timekeeping",
+	"events",
+	"reactions",
+	"machines",
+	"hoppers",
+	"turrets",
+	"automata"
+}) do
 	local loadedModule = dfhack.reqscript("witchen-mechanica/" .. name)
 	table.insert(loadedModuleList, loadedModule)
 	loadedModulesByName[name] = loadedModule
@@ -40,7 +40,7 @@ end
 local consts = loadedModulesByName.consts
 
 if not dfhack_flags.enable then
-	print(usage)
+	print(usage .. "\n")
 	print("Witchen Mechanica is currently " .. (isEnabled() and "enabled" or "disabled"))
 	return
 end
@@ -61,7 +61,7 @@ local function enable()
 			-- Attempt to disable everything if a module has an error while enabling
 			local result, message = pcall(function() module.enable() end)
 			if not result then
-				dfhack.printerr('Error while enabling Witchen Mechanica module "' .. loadedModuleNames[module] .. '"')
+				dfhack.printerr("Error while enabling Witchen Mechanica module \"" .. loadedModuleNames[module] .. "\"")
 				dfhack.printerr(message)
 				disable()
 				return
