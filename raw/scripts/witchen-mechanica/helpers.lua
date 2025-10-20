@@ -554,7 +554,7 @@ function getNumberInFlags(flags, startBit, endBit)
 	return total
 end
 
-function setNumerInFlags(flags, number, startBit, endBit)
+function setNumberInFlags(flags, number, startBit, endBit)
 	for i = startBit, endBit do
 		local mask = 2 ^ (i - startBit)
 		flags[i] = bit32.band(number, mask) ~= 0
