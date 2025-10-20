@@ -32,7 +32,7 @@ for _, name in ipairs({
 	"automata"
 }) do
 	local loadedModule = dfhack.reqscript("witchen-mechanica/" .. name)
-	loadedModuleList[#loadedModuleList+1] = loadedModule
+	table.insert(loadedModuleList, loadedModule)
 	loadedModulesByName[name] = loadedModule
 	loadedModuleNames[loadedModule] = name
 end
@@ -40,8 +40,7 @@ end
 local consts = loadedModulesByName.consts
 
 if not dfhack_flags.enable then
-	print(usage)
-	print()
+	print(usage .. "\n")
 	print("Witchen Mechanica is currently " .. (isEnabled() and "enabled" or "disabled"))
 	return
 end
@@ -74,7 +73,7 @@ local function enable()
 end
 
 if dfhack_flags.enable_state then
-	local currentDFVersion = dfhack.getDFVersion():sub(2, -1):gsub(" .+$", "") -- Remove v and OS, leaving only the numbers
+	local currentDFVersion = dfhack.getDFVersion():match("^v([%d.]+) ") -- Remove v and OS, leaving only the numbers
 	if consts.DFVersion ~= currentDFVersion then
 		dialogs.showMessage("Error",
 			"This version of Witchen Mechanica is for DF version " .. consts.DFVersion .. ",\n" ..
