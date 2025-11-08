@@ -208,7 +208,7 @@ building_witchen_mechanica_workshops
 
 Taken from the Alchemist's Laboratory from my mod Tachy Guns
 [BUILDING_WORKSHOP:WITCH_ALCHEMIST_LAB]
-	[NAME:Alchemical Laboratory]
+	[NAME:Alchemist's Laboratory]
 	[NAME_COLOR:7:0:1]
 	[DIM:3:3]
 	[WORK_LOCATION:2:2]

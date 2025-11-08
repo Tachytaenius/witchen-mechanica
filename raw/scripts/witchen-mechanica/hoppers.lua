@@ -35,31 +35,12 @@ function isBuildingHopperInteractable(building)
 end
 
 function hopperCanMoveItem(item)
-	local flags = item.flags
-	if
-		flags.in_building or -- Like displayed on a pedestal
-		flags.hostile or
-		flags.on_fire or
-		flags.trader or
-		flags.construction or
-		flags.in_job or
-		flags.owned or
-		flags.removed or
-		flags.encased or
-		flags.spider_web or
-		flags.garbage_collect
-	then
-		return false
-	end
-	if #item.specific_refs > 0 then
-		return false
-	end
-	return true
+	return helpers.canUseItem(item) and not item.flags.in_building -- in_building is displayed on a pedestal etc
 end
 
 function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocations)
 	if giveToBelow then
-		if canHopperPassThroughTile(hopperBuilding.centerx, hopperBuilding.centery, hopperBuilding.z) then
+		if helpers.canMachinePassThroughFloor(hopperBuilding.centerx, hopperBuilding.centery, hopperBuilding.z) then
 			local belowX, belowY, belowZ = hopperBuilding.centerx, hopperBuilding.centery, hopperBuilding.z - 1
 			local belowBuilding = helpers.getBuildingAt(belowX, belowY, belowZ)
 			-- Find an item to give
@@ -99,7 +80,7 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 		end
 		if passingItemCount < consts.hopperMaxItemCapacity then
 			local aboveX, aboveY, aboveZ = hopperBuilding.centerx, hopperBuilding.centery, hopperBuilding.z + 1
-			if canHopperPassThroughTile(aboveX, aboveY, aboveZ) then
+			if helpers.canMachinePassThroughFloor(aboveX, aboveY, aboveZ) then
 				local aboveBuilding = helpers.getBuildingAt(aboveX, aboveY, aboveZ)
 				if aboveBuilding and aboveBuilding._type == df.building_trapst and aboveBuilding.trap_type == df.trap_type.TrackStop then
 					if minecartLocations[aboveX] and minecartLocations[aboveX][aboveY] and minecartLocations[aboveX][aboveY][aboveZ] then

@@ -3,6 +3,7 @@
 local utils = require("utils")
 local persistTable = require("persist-table")
 local customRawTokens = require("custom-raw-tokens")
+local syndromeUtil = require("syndrome-util")
 
 local consts = dfhack.reqscript("witchen-mechanica/consts")
 
@@ -22,12 +23,10 @@ end
 function doesBuildingCoverPos(building, x, y, z)
 	x, y, z = xyzOrPos(x, y, z)
 	return
-		not df.building_civzonest:is_instance(building) and
 		building.x1 <= x and x <= building.x2 and
 		building.y1 <= y and y <= building.y2 and
 		z == building.z
 end
-
 
 -- Cache added by SilasD, many thanks
 -- Building cache strategy:
@@ -51,7 +50,10 @@ function getBuildingAt(x, y, z)
 	local index = buildingCache[cacheKey]
 	if index and index < #df.global.world.buildings.all then
 		local building = df.global.world.buildings.all[index]
-		if doesBuildingCoverPos(building, x, y, z) then
+		if
+			not df.building_civzonest:is_instance(building) and
+			doesBuildingCoverPos(building, x, y, z)
+		then
 			buildingCacheHits = buildingCacheHits + 1
 			return building
 		else
@@ -62,7 +64,10 @@ function getBuildingAt(x, y, z)
 	end
 
 	for index, building in ipairs(df.global.world.buildings.all) do
-		if doesBuildingCoverPos(building, x, y, z) then
+		if
+			not df.building_civzonest:is_instance(building) and
+			doesBuildingCoverPos(building, x, y, z)
+		then
 			buildingCacheMisses = buildingCacheMisses + 1
 			buildingCache[cacheKey] = index
 			-- dfhack.printerr("New building cache entry: " .. cacheKey .. ", index " .. index .. ", " .. utils.getBuildingName(building))
@@ -558,5 +563,275 @@ function setNumberInFlags(flags, number, startBit, endBit)
 	for i = startBit, endBit do
 		local mask = 2 ^ (i - startBit)
 		flags[i] = bit32.band(number, mask) ~= 0
+	end
+end
+
+function weightedRandomChoice(choices)
+	local randomNumber = rng:drandom()
+	local weightSum = 0
+	for _, choice in ipairs(choices) do
+		weightSum = weightSum + choice.weight
+	end
+	local x = randomNumber * weightSum
+	for _, choice in ipairs(choices) do
+		if x < choice.weight then
+			return choice.value
+		end
+		x = x - choice.weight
+	end
+	-- Return nil, I guess
+end
+
+-- canCreatePlant and createPlant are based on the plants plugin
+function canCreatePlant(x, y, z)
+	local block = dfhack.maps.getTileBlock(x, y, z)
+	local column = df.global.world.map.column_index[math.floor(x / 48) * 3][math.floor(y / 48) * 3]
+	if not block or not column then
+		return false
+	end
+
+	local lx, ly = x % 16, y % 16
+
+	local designation = block.designation[lx][ly]
+	if designation.flow_size ~= 0 then
+		-- Can't spawn in liquids
+		return false
+	end
+	local occupancy = block.occupancy[lx][ly]
+	if
+		occupancy.building ~= 0
+		-- occupancy.no_grow ?
+	then
+		return false
+	end
+
+	local tiletype = block.tiletype[lx][ly]
+	local tileAttrs = df.tiletype.attrs[tiletype]
+	local matName = df.tiletype_material[tileAttrs.material]
+	if
+		tileAttrs.shape ~= df.tiletype_shape.FLOOR or
+		(
+			matName ~= "SOIL" and
+			matName ~= "GRASS_DARK" and
+			matName ~= "GRASS_LIGHT"
+		)
+	then
+		return false
+	end
+
+	return true
+end
+function createPlant(plantTypeId, x, y, z, disableCheck) -- disableCheck is good if you've already checked the tile
+	if not disableCheck and not canCreatePlant(x, y, z) then
+		return false
+	end
+
+	local raw = df.global.world.raws.plants.all[plantTypeId]
+	if not raw then
+		return false
+	end
+	if raw.flags.GRASS then
+		return false
+	end
+
+	local plant = df.plant:new()
+	if raw.flags.TREE then
+		plant.hitpoints = 400000
+	else
+		plant.hitpoints = 100000
+		plant.flags.is_shrub = true
+	end
+
+	-- The plants plugin's code sets the watery flag for
+	-- WET-type plants even if they're spawned away from water.
+	-- According to the code (for v47), the proper method is unclear.
+	if raw.flags.WET then
+		plant.flags.watery = true
+	end
+	plant.material = plantTypeId
+	plant.pos.x = x
+	plant.pos.y = y
+	plant.pos.z = z
+	plant.update_order = rng:random(10)
+
+	local plants = df.global.world.plants
+	plants.all:insert("#", plant)
+	local vec =
+		plant.flags.is_shrub and (
+			plant.flags.watery and plants.shrub_wet or
+			plants.shrub_dry
+		) or (
+			plant.flags.watery and plants.tree_wet or
+			plants.tree_dry
+		)
+	vec:insert("#", plant)
+
+	local block = dfhack.maps.getTileBlock(x, y, z)
+	local column = df.global.world.map.column_index[math.floor(x / 48) * 3][math.floor(y / 48) * 3]
+	column.plants:insert("#", plant)
+	block.tiletype[x % 16][y % 16] = plant.flags.is_shrub and
+		df.tiletype.Shrub or df.tiletype.Sapling
+
+	return true
+end
+
+-- By "distance" it's not actually considering pathfinding distance...
+-- If you just want the closest, you can get the first value in the returned table (if present)
+function sortPathableBuildingsInSetByDistance(set, x, y, z)
+	local pos
+	if type(x) == "number" and y and z then
+		pos = xyz2pos(x, y, z)
+	else
+		pos = x
+	end
+
+	local pathableChoices = {}
+	for _, building in ipairs(set) do
+		if dfhack.maps.canWalkBetween(pos, xyz2pos(building.centerx, building.centery, building.z)) then
+			table.insert(pathableChoices, building)
+		end
+	end
+
+	table.sort(pathableChoices, function(a, b)
+		if a.z ~= b.z then
+			if a.z == z then
+				return true
+			elseif b.z == z then
+				return false
+			end
+		end
+		return
+			math.sqrt((a.centerx - x) ^ 2 + (a.centery - y) ^ 2) <
+			math.sqrt((b.centerx - x) ^ 2 + (b.centery - y) ^ 2)
+	end)
+	return pathableChoices
+end
+
+function canUseItem(item)
+	local flags = item.flags
+	if
+		flags.hostile or
+		flags.on_fire or
+		flags.trader or
+		flags.construction or
+		flags.in_job or
+		flags.owned or
+		flags.removed or
+		flags.encased or
+		flags.spider_web or
+		flags.garbage_collect
+	then
+		return false
+	end
+	if #item.specific_refs > 0 then
+		return false
+	end
+	return true
+end
+
+function addItemToJob(job, item, role, filterIdx, insertIdx) -- Backported from a later DFHack version
+	if role ~= df.job_item_ref.T_role.TargetContainer then
+		if item.flags.in_job then
+			return false
+		end
+		item.flags.in_job = true
+	end
+
+	local itemLink = df.specific_ref:new()
+	itemLink.type = df.specific_ref_type.JOB
+	itemLink.data.job = job
+	item.specific_refs:insert("#", itemLink)
+
+	local jobLink = df.job_item_ref:new()
+	jobLink.item = item
+	jobLink.role = role
+	jobLink.job_item_idx = filterIdx
+
+	if insertIdx >= 0 and insertIdx < #job.items then
+		job.items:insert(insertIdx, jobLink)
+	else
+		job.items:insert("#", jobLink)
+	end
+
+	return true
+end
+
+function iterateJobs(func)
+	local listLink = df.global.world.jobs.list
+	while true do
+		if listLink.item then
+			func(listLink.item)
+		end
+		if listLink.next then
+			listLink = listLink.next
+		else
+			break
+		end
+	end
+end
+
+function tryAddSyndrome(unit, syndromeId) -- Returns instance of syndrome and boolean for whether it was newly added
+	local existingInstance = syndromeUtil.findUnitSyndrome(unit, syndromeId)
+	if existingInstance then
+		return existingInstance, false
+	end
+
+	if not syndromeUtil.infectWithSyndromeIfValidTarget(unit, syndromeId) then
+		return
+	end
+
+	-- I assume the reinfection list is sorted.
+	local oldReinfectionCount
+	local added = false
+	for i, reinfectionSyndromeId in ipairs(unit.syndromes.reinfection_type) do
+		if reinfectionSyndromeId == syndromeId then
+			oldReinfectionCount = unit.syndromes.reinfection_count[i]
+			unit.syndromes.reinfection_count[i] = oldReinfectionCount + 1
+			added = true
+			break
+		elseif reinfectionSyndromeId > syndromeId then
+			oldReinfectionCount = 0
+			unit.syndromes.reinfection_type:insert(i, syndromeId)
+			unit.syndromes.reinfection_count:insert(i, 1) -- More like "next reinfection count"
+			added = true
+			break
+		end
+	end
+	if not added then
+		oldReinfectionCount = 0
+		unit.syndromes.reinfection_type:insert("#", syndromeId)
+		unit.syndromes.reinfection_count:insert("#", 1)
+	end
+
+	-- Set the reinfection count on the syndrome itself
+	local syndromeInstance = unit.syndromes.active[#unit.syndromes.active - 1]
+	if not syndromeInstance or syndromeInstance.type ~= syndromeId then
+		-- ???
+		return
+	end
+	syndromeInstance.reinfection_count = oldReinfectionCount
+
+	return syndromeInstance, true
+end
+
+function iterateMaterials(func)
+	local raws = df.global.world.raws
+	for _, builtin in ipairs(raws.mat_table.builtin) do
+		if builtin then
+			func(builtin)
+		end
+	end
+	for _, inorganic in ipairs(raws.inorganics) do
+		func(inorganic.material)
+	end
+	for _, creature in ipairs(raws.creatures.all) do
+		for _, material in ipairs(creature.material) do
+			func(material)
+		end
+	end
+	for _, plant in ipairs(raws.plants.all) do
+		for _, material in ipairs(plant.material) do
+			func(material)
+		end
 	end
 end

@@ -1,0 +1,8 @@
+reaction_witchen_mechanica_special
+
+[OBJECT:REACTION]
+
+[REACTION:ADMINISTER_MEDICATION]
+	[NAME:administer medication]
+	[REAGENT:preserver:1:NONE:NONE:NONE:NONE] Items in jobs of this type are set to this reagent so that they don't get consumed on use
+		[PRESERVE_REAGENT]
