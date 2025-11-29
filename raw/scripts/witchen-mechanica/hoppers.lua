@@ -35,7 +35,7 @@ function isBuildingHopperInteractable(building)
 end
 
 function hopperCanMoveItem(item)
-	return helpers.canUseItem(item) and not item.flags.in_building -- in_building is displayed on a pedestal etc
+	return helpers.canUseItem(item, true) and not item.flags.in_building -- in_building is displayed on a pedestal etc
 end
 
 function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocations)
@@ -133,8 +133,8 @@ local function onTick()
 	local hopperTimer = helpers.getPersistNum("hopperTimer") or 0
 	local takeFromAboveNextUpdate = helpers.getPersistBool("hopperTakeFromAboveNextUpdate")
 	hopperTimer = hopperTimer - 1
-	if hopperTimer < 0 then
-		hopperTimer = consts.hopperTimerLength
+	if hopperTimer <= 0 then
+		hopperTimer = consts.hopperRepeatInterval
 		helpers.setPersistBool("hopperTakeFromAboveNextUpdate", not takeFromAboveNextUpdate)
 	end
 	helpers.setPersistNum("hopperTimer", hopperTimer)

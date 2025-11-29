@@ -229,7 +229,11 @@ end
 local function fireTurret(turret, unit)
 	local ammoStack
 	for _, item in ipairs(turret.contained_items) do
-		if item.use_mode == 0 and canTurretFireAmmo(turret, item.item) then
+		if
+			item.use_mode == 0 and
+			helpers.canUseItem(item) and
+			canTurretFireAmmo(turret, item.item)
+		then
 			ammoStack = item.item
 			break
 		end

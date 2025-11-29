@@ -29,7 +29,8 @@ for _, name in ipairs({
 	"machines",
 	"hoppers",
 	"turrets",
-	"automata"
+	"automata",
+	"medical"
 }) do
 	local loadedModule = dfhack.reqscript("witchen-mechanica/" .. name)
 	table.insert(loadedModuleList, loadedModule)

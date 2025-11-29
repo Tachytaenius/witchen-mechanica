@@ -416,6 +416,7 @@ function canBeAddedToJob(unit)
 	if unit.job.current_job then
 		return false
 	end
+	-- TODO: No soldiers on orders
 	return true
 end
 function addJobWorker(job, unit)
@@ -683,6 +684,7 @@ function sortPathableBuildingsInSetByDistance(set, x, y, z)
 		pos = xyz2pos(x, y, z)
 	else
 		pos = x
+		x, y, z = pos.x, pos.y, pos.z
 	end
 
 	local pathableChoices = {}
@@ -706,8 +708,43 @@ function sortPathableBuildingsInSetByDistance(set, x, y, z)
 	end)
 	return pathableChoices
 end
+-- Check comments for above function (sortPathableBuildingsInSetByDistance) too
+function sortPathableUnitsInSetByDistance(set, x, y, z)
+	local pos
+	if type(x) == "number" and y and z then
+		pos = xyz2pos(x, y, z)
+	else
+		pos = x
+		x, y, z = pos.x, pos.y, pos.z
+	end
 
-function canUseItem(item)
+	local pathableChoices = {}
+	for _, unit in ipairs(set) do
+		local unitPos = xyz2pos(dfhack.units.getPosition(unit))
+		if unitPos and dfhack.maps.canWalkBetween(pos, unitPos) then
+			table.insert(pathableChoices, unit)
+		end
+	end
+
+	table.sort(pathableChoices, function(a, b)
+		-- We only have units with valid positions in pathableChoices
+		local ax, ay, az = dfhack.units.getPosition(a)
+		local bx, by, bz = dfhack.units.getPosition(b)
+		if az ~= bz then
+			if az == z then
+				return true
+			elseif bz == z then
+				return false
+			end
+		end
+		return
+			math.sqrt((ax - x) ^ 2 + (ay - y) ^ 2) <
+			math.sqrt((bx - x) ^ 2 + (by - y) ^ 2)
+	end)
+	return pathableChoices
+end
+
+function canUseItem(item, allowForbidden)
 	local flags = item.flags
 	if
 		flags.hostile or
@@ -719,7 +756,8 @@ function canUseItem(item)
 		flags.removed or
 		flags.encased or
 		flags.spider_web or
-		flags.garbage_collect
+		flags.garbage_collect or
+		flags.forbid and not allowForbidden
 	then
 		return false
 	end
@@ -770,13 +808,15 @@ function iterateJobs(func)
 	end
 end
 
-function tryAddSyndrome(unit, syndromeId) -- Returns instance of syndrome and boolean for whether it was newly added
+function tryAddSyndrome(unit, syndrome) -- Returns instance of syndrome and boolean for whether it was newly added
+	local syndromeId = syndrome.id
+
 	local existingInstance = syndromeUtil.findUnitSyndrome(unit, syndromeId)
 	if existingInstance then
 		return existingInstance, false
 	end
 
-	if not syndromeUtil.infectWithSyndromeIfValidTarget(unit, syndromeId) then
+	if not syndromeUtil.infectWithSyndromeIfValidTarget(unit, syndrome) then
 		return
 	end
 
@@ -834,4 +874,54 @@ function iterateMaterials(func)
 			func(material)
 		end
 	end
+end
+
+function cancelJobWithFakeZone(job) -- No good way to cancel jobs in v47
+	-- Get fake zone
+	local fakeZoneId = getPersistNum("cancelJobZone")
+	if not fakeZoneId then
+		fakeZoneId = df.global.building_next_id
+		df.global.building_next_id = df.global.building_next_id + 1
+		setPersistNum("cancelJobZone", fakeZoneId)
+	end
+	local zone = df.building.find(fakeZoneId)
+	if zone then
+		dfhack.printerr("Fake job cancellation zone (building id " .. fakeZoneId .. ") exists when it should have been cleaned up")
+	else
+		zone = df.building_civzonest:new()
+		dfhack.buildings.constructAbstract(zone)
+	end
+
+	-- Move job to the zone for cancellation
+	local buildingHolderRef = dfhack.job.getGeneralRef(job, df.general_ref_type.BUILDING_HOLDER)
+	if buildingHolderRef then
+		local building = buildingHolderRef:getBuilding()
+		if building then
+			for i, buildingJob in ipairs(building.jobs) do
+				if buildingJob == job then
+					building.jobs:erase(i) -- Remove from original building (if present)
+					break
+				end
+			end
+		end
+	end
+	if not buildingHolderRef then
+		-- If there was no building holder ref pointing at another building, we'll need to make one to make the job point at the fake zone
+		buildingHolderRef = df.general_ref_building_holderst:new()
+		job.general_refs:insert(buildingHolderRef)
+	end
+	buildingHolderRef.building_id = fakeZoneId
+	zone.jobs:insert("#", job)
+
+	-- Complete the cancellation
+	dfhack.buildings.deconstruct(zone)
+end
+
+function canUseFurniture(building)
+	return
+		building.flags.exists and
+		building.construction_stage >= 1 and
+		not dfhack.buildings.markedForRemoval(building) and
+		#building.jobs == 0
+		-- TODO: Check forbidden building conditions
 end
