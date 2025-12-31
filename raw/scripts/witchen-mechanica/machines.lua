@@ -9,7 +9,8 @@ machines = utils.invert({
 	"WITCH_HOPPER",
 	"WITCH_TURRET",
 	"AUTOMATON_SUMMONARY",
-	"AUTOMATON_PYLON_BASE"
+	"AUTOMATON_PYLON_BASE",
+	"WITCH_VEHICLE_PUSHER"
 })
 
 local function onTick()

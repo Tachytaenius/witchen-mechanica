@@ -5,6 +5,7 @@ local customRawTokens = require("custom-raw-tokens")
 local buildingHacks = require("plugins.building-hacks")
 local utils = require("utils")
 local createUnit = dfhack.reqscript("modtools/create-unit")
+local syndromeUtil = require("syndrome-util")
 
 local timekeeping = dfhack.reqscript("witchen-mechanica/timekeeping")
 local events = dfhack.reqscript("witchen-mechanica/events")
@@ -66,7 +67,8 @@ end
 
 local function workOnCurrentJob(automatonUnit)
 	-- The game is surprisingly compliant with our vision here. The automata actually do jobs.
-	-- So we will just add some effects.
+	-- So we will just add some effects and speed up the process.
+	dfhack.units.subtractGroupActionTimers(automatonUnit, consts.automatonWorkActionSubtractPerTick, df.unit_action_type_group.Work)
 	local position = xyz2pos(dfhack.units.getPosition(automatonUnit))
 	if not position then
 		return
@@ -95,20 +97,23 @@ function automatonWorkAtBuildingEnabled(automatonUnit, building)
 	return true
 end
 
--- A few ideas were tested. In the end we abandoned the method of unsetting NO_SLEEP and setting sleepiness_counter.
--- Setting on_ground ourselves seems to make the on ground status more consistent when paused or unpaused.
--- Ideally we could stop the game from unsetting unconscious mid-tick, not sure how to do that without using normal sleep which creates jobs and thus cancel spam when pasturing a unit, or doing something horrible like causing a painful wound (and unsetting the no pain flag).
 local function automatonActivate(automatonUnit)
 	-- Repeatedly called when powered
-	-- automatonUnit.counters2.sleepiness_timer = 0
-	automatonUnit.counters.unconscious = 0
-	automatonUnit.flags1.on_ground = false
+	local syndrome = helpers.findSyndromeByName("automaton deactivation")
+	syndromeUtil.eraseSyndrome(automatonUnit, syndrome.id)
 end
 local function automatonDeactivate(automatonUnit)
 	-- Repeatedly called when unpowered
-	-- automatonUnit.counters2.sleepiness_timer = 100000
-	automatonUnit.counters.unconscious = 1000
-	automatonUnit.flags1.on_ground = true
+	local syndrome = helpers.findSyndromeByName("automaton deactivation")
+	local instance = helpers.tryAddSyndrome(automatonUnit, syndrome)
+	if not instance then
+		-- Shouldn't happen
+		return
+	end
+	-- This makes it work less well?
+	-- for _, symptom in ipairs(instance.symptoms) do
+	-- 	symptom.quantity = 10000
+	-- end
 end
 
 local function automatonWork(automatonUnit)
@@ -172,7 +177,10 @@ local function automatonWork(automatonUnit)
 end
 
 local function updateAutomaton(automatonUnit, powerLocations)
-	automatonKillCheck(automatonUnit)
+	if automatonKillCheck(automatonUnit) then
+		return
+	end
+
 	-- TODO: Wipe soul struct. Apparently they can experience trauma etc
 	-- TODO: Wipe physical attributes too
 	-- TODO: Zero fat? Or do so on creation?
@@ -230,6 +238,9 @@ local function onTick()
 		if not topBuilding then
 			goto continue
 		end
+		if topBuilding._type ~= df.building_workshopst then
+			goto continue
+		end
 		local topCustomType = df.building_def.find(topBuilding.custom_type)
 		if not topCustomType then
 			goto continue
@@ -261,7 +272,12 @@ function createAutomaton(x, y, z, core, languageId, civId)
 	if not newAutomaton then
 		return
 	end
-	local name = "Automaton (#" .. newAutomaton.id .. ")" -- TODO: Bring up naming screen?
+
+	local nextAutomatonNumber = helpers.getPersistNum("nextAutomatonNumber") or 1
+	local name = "Automaton #" .. nextAutomatonNumber
+	nextAutomatonNumber = nextAutomatonNumber + 1
+	helpers.setPersistNum("nextAutomatonNumber", nextAutomatonNumber)
+
 	newAutomaton.flags3.scuttle = false
 	newAutomaton.civ_id = civId
 	-- TODO: Uniform sizes(?) etc(?)
@@ -285,9 +301,11 @@ function createAutomaton(x, y, z, core, languageId, civId)
 	if not core then
 		return
 	end
-	local coreReceptacleBodyPartId = 1 -- TODO: Find by "WITCH_AUTOMATON_CORE_RECEPTACLE"
-	if not dfhack.items.moveToInventory(core, newAutomaton, df.unit_inventory_item.T_mode.SewnInto, coreReceptacleBodyPartId) then
-		return
+	for i, part in ipairs(newAutomaton.body.body_plan.body_parts) do
+		if part.token == "CORE_RECEPTACLE" then
+			dfhack.items.moveToInventory(core, newAutomaton, df.unit_inventory_item.T_mode.SewnInto, i)
+			break
+		end
 	end
 end
 
@@ -361,14 +379,21 @@ function enable()
 	-- Assume loading world, if reenabling this is OK too
 	-- TODO: How to run code automatically during worldgen, since init.d isn't checked?
 	for _, creature in ipairs(df.global.world.raws.creatures.all) do
-		if customRawTokens.getToken(creature, "WITCHEN_MECHANICA_NOT_WAGON") then
-			creature.flags.EQUIPMENT_WAGON = false
-			-- Assume EQUIPMENT, NOPAIN, etc are true because of [EQUIPMENT_WAGON]
+		-- Used by automata. Can move if needed
+
+		local creatureFlags = {customRawTokens.getToken(creature, "WITCHEN_MECHANICA_UNSET_CREATURE_FLAGS")}
+		if creatureFlags[1] then
+			for _, flag in ipairs(creatureFlags) do
+				creature.flags[flag] = false
+			end
 		end
-		for casteNumber, caste in ipairs(creature.caste) do
-			if customRawTokens.getToken(creature, casteNumber, "WITCHEN_MECHANICA_REENABLE_SLEEP") then
-				-- This is no longer used, since the unconsciousness counter works fine regardless
-				caste.flags.NO_SLEEP = false
+
+		for i, caste in ipairs(creature.caste) do
+			local casteFlags = {customRawTokens.getToken(creature, i, "WITCHEN_MECHANICA_UNSET_CASTE_FLAGS")}
+			if casteFlags[1] then
+				for _, flag in ipairs(casteFlags) do
+					caste.flags[flag] = false
+				end
 			end
 		end
 	end
@@ -398,7 +423,7 @@ function enable()
 	buildingHacks.registerBuilding({
 		name = "AUTOMATON_SUMMONARY",
 		consume = 120,
-		needs_power = 120,
+		needs_power = 1,
 		gears = {
 			{x = 2, y = 0}
 		},
@@ -463,7 +488,7 @@ function enable()
 	buildingHacks.registerBuilding({
 		name = "AUTOMATON_PYLON_BASE",
 		consume = 500,
-		needs_power = 500,
+		needs_power = 1,
 		gears = {
 			{x = 2, y = 0},
 			{x = 0, y = 2},

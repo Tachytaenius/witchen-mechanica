@@ -195,3 +195,16 @@ General anaesthetic from refining a mix of localised anaesthetic and ingested an
 		[CE_REDUCE_PAIN:SEV:60:PROB:100:ABRUPT_END:START:5:PEAK:100:END:5000]
 		[CE_UNCONSCIOUSNESS:SEV:2000:PROB:100:ABRUPT_END:START:5:PEAK:100:END:5000]
 		[SYN_NO_HOSPITAL] Because of unconsciousness
+
+[INORGANIC:SALT_OF_SORCERY] Based on the builtin salt material
+	[STATE_COLOR:ALL:MINT_GREEN]
+	[STATE_NAME_ADJ:ALL_SOLID:salt of sorcery]
+	[STATE_NAME_ADJ:LIQUID:molten salt of sorcery]
+	[STATE_NAME_ADJ:GAS:boiling salt of sorcery]
+	[DISPLAY_COLOR:3:0:1]
+	[MATERIAL_VALUE:14]
+	[SPEC_HEAT:854]
+	[MELTING_POINT:11442]
+	[BOILING_POINT:12637]
+	[SOLID_DENSITY:1600]
+	[LIQUID_DENSITY:1600]

@@ -48,3 +48,12 @@ item_witchen_mechanica_components
 	[SIZE:1000]
 	[MATERIAL_SIZE:4]
 	[VALUE:28]
+
+[ITEM_TOOL:ITEM_TOOL_VEHICLE_PISTON]
+	[NAME:vehicle piston:vehicle pistons]
+	[DESCRIPTION:A piston used to push vehicles off track stops.]
+	[TILE:'T']
+	[INCOMPLETE_ITEM]
+	[SIZE:500]
+	[MATERIAL_SIZE:2]
+	[VALUE:10]

@@ -13,10 +13,10 @@ creature_witchen_mechanica_automaton
 	[GLOWCOLOR:3:0:1]
 
 	[EQUIPMENT_WAGON] Sets EQUIPMENT_WAGON and EQUIPMENT flags and then we get lots of stuff including NO_DRINK, NO_SLEEP, etc
-	[WITCHEN_MECHANICA_NOT_WAGON] Then this will unset the actual EQUIPMENT_WAGON flag so that they aren't used as caravan wagons. NOTE: scuttle flag must also be removed
+	[WITCHEN_MECHANICA_UNSET_CREATURE_FLAGS:EQUIPMENT_WAGON] Unset the actual EQUIPMENT_WAGON flag so that they aren't used as caravan wagons. NOTE: scuttle flag must also be removed.
+	[WITCHEN_MECHANICA_UNSET_CASTE_FLAGS:NOSTUN] So that the deactivation syndrome works
 	They also need to be domesticated to avoid randomly attacking people
-	(WITCHEN_MECHANICA_DEATH_FLOW:10:Smoke:NONE:NONE) Disabled because they vanish, producing smoke (too much but we can maybe fix that later)
-	(WITCHEN_MECHANICA_REENABLE_SLEEP) So that we can deactivate them when they aren't powered using sleep. Except, we're using the unconsciousness timer now, which seems to work fine whether this is or isn't true. So this token is also disabled.
+	(WITCHEN_MECHANICA_DEATH_FLOW:10:Smoke:NONE:NONE) Disabled because they vanish, producing smoke (too much but we can maybe fix that (TODO))
 	[WITCHEN_MECHANICA_IS_AUTOMATON] Enter automaton update function
 	[WITCHEN_MECHANICA_AUTOMATON_REQUIRED_TOOL:ITEM_TOOL_MECHANICORE:SewnInto:CORE_RECEPTACLE]
 
@@ -31,7 +31,7 @@ creature_witchen_mechanica_automaton
 		[RELATIVE_THICKNESS:1]
 		[TISSUE_SHAPE:LAYER]
 	[TISSUE:GAS]
-		[TISSUE_NAME:internal gas:internal gasses]
+		[TISSUE_NAME:internal gas:internal gases]
 		[TISSUE_MATERIAL:INORGANIC:AUTOMATON_GAS]
 		[TISSUE_MAT_STATE:GAS]
 		[FUNCTIONAL]
@@ -64,3 +64,4 @@ creature_witchen_mechanica_automaton
 	[EXTRAVISION]
 	[VIEWRANGE:0]
 	[WEBIMMUNE]
+	[GRASSTRAMPLE:0]

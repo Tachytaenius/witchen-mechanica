@@ -924,13 +924,13 @@ local function administerMedicationJobOnTick(job)
 		not patient.job.current_job or
 		patient.job.current_job.job_type ~= df.job_type.Rest
 	then
-		helpers.cancelJobWithFakeZone(job)
+		helpers.cancelJob(job)
 		return
 	end
 
 	local administerer = dfhack.job.getWorker(job)
 	if not administerer then
-		helpers.cancelJobWithFakeZone(job)
+		helpers.cancelJob(job)
 		return
 	end
 end

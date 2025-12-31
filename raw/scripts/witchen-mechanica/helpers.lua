@@ -39,6 +39,11 @@ end
 -- * The cache will get stale when buildings are destroyed; that's okay.
 local buildingCache = {}
 local buildingCacheHits, buildingCacheMisses, buildingCacheStale = 0, 0, 0
+local function isValidBuildingForFind(building)
+	return
+		not df.building_civzonest:is_instance(building) and
+		not df.building_stockpilest:is_instance(building)
+end
 function getBuildingAt(x, y, z)
 	x, y, z = xyzOrPos(x, y, z)
 	local _, occupancy = dfhack.maps.getTileFlags(x, y, z)
@@ -51,7 +56,7 @@ function getBuildingAt(x, y, z)
 	if index and index < #df.global.world.buildings.all then
 		local building = df.global.world.buildings.all[index]
 		if
-			not df.building_civzonest:is_instance(building) and
+			isValidBuildingForFind(building) and
 			doesBuildingCoverPos(building, x, y, z)
 		then
 			buildingCacheHits = buildingCacheHits + 1
@@ -65,7 +70,7 @@ function getBuildingAt(x, y, z)
 
 	for index, building in ipairs(df.global.world.buildings.all) do
 		if
-			not df.building_civzonest:is_instance(building) and
+			isValidBuildingForFind(building) and
 			doesBuildingCoverPos(building, x, y, z)
 		then
 			buildingCacheMisses = buildingCacheMisses + 1
@@ -465,11 +470,29 @@ function spawnUnit(raceName, casteName, x, y, z)
 		error("Invalid caste " .. casteName)
 	end
 
-	dfhack.run_command("summon " .. table.concat({raceId, casteId, x, y, z}, " "))
+	dfhack.run_command("v47utils summon " .. table.concat({raceId, casteId, x, y, z}, " "))
 
 	if df.global.unit_next_id == expectedId + 1 then
 		return df.unit.find(expectedId)
 	end
+end
+
+function cancelJob(job)
+	-- This would crash with general refs left in the job (discovered with patient refs left on administer medication jobs), so we clear them
+	local i = 0
+	while i < #job.general_refs do
+		local ref = job.general_refs[i]
+		if
+			-- These two types are handled by job removal code already
+			ref._type ~= df.general_ref_building_holderst and
+			ref._type ~= df.general_ref_unit_workerst
+		then
+			job.general_refs:erase(i)
+		else
+			i = i + 1
+		end
+	end
+	dfhack.run_command("v47utils remove-job " .. job.id)
 end
 
 function canMachinePassThroughFloor(x, y, z)
@@ -808,6 +831,14 @@ function iterateJobs(func)
 	end
 end
 
+function findSyndromeByName(syndromeName)
+	for _, syndrome in ipairs(df.global.world.raws.syndromes.all) do
+		if syndrome.syn_name == syndromeName then
+			return syndrome
+		end
+	end
+end
+
 function tryAddSyndrome(unit, syndrome) -- Returns instance of syndrome and boolean for whether it was newly added
 	local syndromeId = syndrome.id
 
@@ -876,52 +907,93 @@ function iterateMaterials(func)
 	end
 end
 
-function cancelJobWithFakeZone(job) -- No good way to cancel jobs in v47
-	-- Get fake zone
-	local fakeZoneId = getPersistNum("cancelJobZone")
-	if not fakeZoneId then
-		fakeZoneId = df.global.building_next_id
-		df.global.building_next_id = df.global.building_next_id + 1
-		setPersistNum("cancelJobZone", fakeZoneId)
-	end
-	local zone = df.building.find(fakeZoneId)
-	if zone then
-		dfhack.printerr("Fake job cancellation zone (building id " .. fakeZoneId .. ") exists when it should have been cleaned up")
-	else
-		zone = df.building_civzonest:new()
-		dfhack.buildings.constructAbstract(zone)
-	end
-
-	-- Move job to the zone for cancellation
-	local buildingHolderRef = dfhack.job.getGeneralRef(job, df.general_ref_type.BUILDING_HOLDER)
-	if buildingHolderRef then
-		local building = buildingHolderRef:getBuilding()
-		if building then
-			for i, buildingJob in ipairs(building.jobs) do
-				if buildingJob == job then
-					building.jobs:erase(i) -- Remove from original building (if present)
-					break
-				end
-			end
-		end
-	end
-	if not buildingHolderRef then
-		-- If there was no building holder ref pointing at another building, we'll need to make one to make the job point at the fake zone
-		buildingHolderRef = df.general_ref_building_holderst:new()
-		job.general_refs:insert(buildingHolderRef)
-	end
-	buildingHolderRef.building_id = fakeZoneId
-	zone.jobs:insert("#", job)
-
-	-- Complete the cancellation
-	dfhack.buildings.deconstruct(zone)
-end
-
 function canUseFurniture(building)
 	return
 		building.flags.exists and
 		building.construction_stage >= 1 and
 		not dfhack.buildings.markedForRemoval(building) and
-		#building.jobs == 0
-		-- TODO: Check forbidden building conditions
+		#building.jobs == 0 and
+		not building:isForbidden()
 end
+
+function isBuildingLinkedToSelf(building)
+	local links = building.profile.links
+	-- Has to be the give/take to/from stockpile links, not the give/take to/from workshop ones to make a workshop's items "self-contained"
+	local givesToSelf = not not utils.linear_index(links.give_to_pile, building.id, "id")
+	local takesFromSelf = not not utils.linear_index(links.take_from_pile, building.id, "id")
+	if givesToSelf ~= takesFromSelf then
+		dfhack.printerr("Building " .. building.id .. " is linked to itself in an inconsistent state")
+	end
+	return givesToSelf and takesFromSelf
+end
+
+function setBuildingLinkedToSelf(building)
+	if isBuildingLinkedToSelf(building) then
+		dfhack.printerr("Attempted to link building " .. building.id .. " to itself but it already is")
+	end
+	local links = building.profile.links
+	links.give_to_pile:insert("#", building)
+	links.take_from_pile:insert("#", building)
+end
+
+function setBuildingUnlinkedFromSelf(building)
+	if not isBuildingLinkedToSelf(building) then
+		dfhack.printerr("Attempted to unlink building " .. building.id .. " from itself but it already is unlinked")
+	end
+	local links = building.profile.links
+	local selfGiveIndex = utils.linear_index(links.give_to_pile, building.id, "id")
+	links.give_to_pile:erase(selfGiveIndex)
+	local selfTakeIndex = utils.linear_index(links.take_from_pile, building.id, "id")
+	links.take_from_pile:erase(selfTakeIndex)
+end
+
+-- function isBuildingLinkedToSelf(building)
+-- 	local links = building.profile.links
+-- 	-- Has to be the give/take to/from stockpile links, not the give/take to/from workshop ones to make a workshop's items "self-contained"
+-- 	local givesToSelfPile = not not utils.linear_index(links.give_to_pile, building.id, "id")
+-- 	local takesFromSelfPile = not not utils.linear_index(links.take_from_pile, building.id, "id")
+-- 	local givesToSelfShop = not not utils.linear_index(links.give_to_workshop, building.id, "id")
+-- 	local takesFromSelfShop = not not utils.linear_index(links.take_from_workshop, building.id, "id")
+-- 	if not (givesToSelfPile == takesFromSelfPile and takesFromSelfPile == givesToSelfShop and givesToSelfShop == takesFromSelfShop) then
+-- 		dfhack.printerr("Building " .. building.id .. " is linked to itself in an inconsistent state")
+-- 	end
+-- 	return givesToSelfPile and takesFromSelfPile and givesToSelfShop and takesFromSelfShop
+-- end
+
+-- function setBuildingLinkedToSelf(building)
+-- 	if isBuildingLinkedToSelf(building) then
+-- 		dfhack.printerr("Attempted to link building " .. building.id .. " to itself but it already is")
+-- 	end
+-- 	local links = building.profile.links
+-- 	links.give_to_pile:insert("#", building)
+-- 	links.take_from_pile:insert("#", building)
+-- 	links.give_to_workshop:insert("#", building)
+-- 	links.take_from_workshop:insert("#", building)
+-- end
+
+-- function setBuildingUnlinkedFromSelf(building)
+-- 	if not isBuildingLinkedToSelf(building) then
+-- 		dfhack.printerr("Attempted to unlink building " .. building.id .. " from itself but it already is unlinked")
+-- 	end
+-- 	local links = building.profile.links
+
+-- 	local selfGiveIndexPile = utils.linear_index(links.give_to_pile, building.id, "id")
+-- 	if selfGiveIndexPile then
+-- 		links.give_to_pile:erase(selfGiveIndexPile)
+-- 	end
+
+-- 	local selfTakeIndexPile = utils.linear_index(links.take_from_pile, building.id, "id")
+-- 	if selfTakeIndexPile then
+-- 		links.take_from_pile:erase(selfTakeIndexPile)
+-- 	end
+
+-- 	local selfGiveIndexShop = utils.linear_index(links.give_to_workshop, building.id, "id")
+-- 	if selfGiveIndexShop then
+-- 		links.give_to_pile:erase(selfGiveIndexShop)
+-- 	end
+
+-- 	local selfTakeIndexShop = utils.linear_index(links.take_from_workshop, building.id, "id")
+-- 	if selfTakeIndexShop then
+-- 		links.take_from_pile:erase(selfTakeIndexShop)
+-- 	end
+-- end

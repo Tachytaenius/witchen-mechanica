@@ -19,6 +19,7 @@ hopperMaxItemCapacity = 4 -- Count, not volume
 
 -- Automata
 automatonPylonRadius = 12
+automatonWorkActionSubtractPerTick = 10
 automatonWorkSmallMagicPuffChance = 0.02
 automatonWorkLargeMagicPuffChance = 0.005
 automatonWorkSmallMagicPuffSize = 6
@@ -34,16 +35,16 @@ woundPainInitialisedBit = 23
 woundPainRecordBitsStart = 24
 woundPainRecordBitsEnd = 31
 painFixInitialRecordedPainMultiplier = 0.8
-painFixRepeatInterval = 6 -- Best to keep this low. The higher it is the less performance impact the pain fix will have, but the lower it is the more precise we can be about recorded pain.
-painFixDecrementRate = 20 -- Every n pain fix repeats, decrement by the decrement amount
-painFixDecrementAmount = 1 -- Every painFixRepeatInterval * painFixDecrementRate ticks
+painFixRepeatInterval = 20 -- Best to keep this low. The higher it is the less performance impact the pain fix will have, but the lower it is the more precise we can be about recorded pain.
+painFixDecrementRate = 40 -- Every n pain fix repeats, decrement by the decrement amount
+painFixDecrementAmount = 2 -- Every painFixRepeatInterval * painFixDecrementRate ticks
 internalAnalgesicPainThreshold = 22 -- If local anaesthetic can't be applied to a body part because it's internal (and general anaesthesia isn't to be used)
 bodyPartLocalAnaestheticPainThreshold = 18
 generalAnaestheticPainThreshold = 54
 applicationTypePriority = {"contact", "ingested", "inhaled", "injected"}
-painRewindChancePerTick = 1 - 1 / 40
-handleFlooredRestingRepeatInterval = 250
-checkMedicationNeededRepeatInterval = 150
+painRewindChancePerTick = 1 - 1 / 35
+handleFlooredRestingRepeatInterval = 300
+checkMedicationNeededRepeatInterval = 200
 
 -- Game's own value(s)
 sleepinessTimerDecrease = 19 -- Presumably the sleepiness timer goes up by 1 and is then lowered by 20...?

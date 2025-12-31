@@ -449,7 +449,7 @@ function enable()
 	buildingHacks.registerBuilding({
 		name = "WITCH_TURRET",
 		consume = 300,
-		needs_power = 300,
+		needs_power = 1,
 		gears = {
 			{x = 2, y = 4}
 		},

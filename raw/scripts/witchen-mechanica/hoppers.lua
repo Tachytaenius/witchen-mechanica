@@ -28,14 +28,88 @@ allowedHopperBuildingTypes = utils.invert({
 })
 
 function isBuildingHopperInteractable(building)
-	if allowedHopperBuildingTypes[building._type] then
-		return true
+	if not building.flags.exists then
+		return false
 	end
-	return false
+	if not allowedHopperBuildingTypes[building._type] then
+		return false
+	end
+	return true
 end
 
 function hopperCanMoveItem(item)
 	return helpers.canUseItem(item, true) and not item.flags.in_building -- in_building is displayed on a pedestal etc
+end
+
+function hopperIndividualItemFilterCheck(item, filterItem)
+	local match =
+		item:getType() == filterItem:getType() and
+		item:getSubtype() == filterItem:getSubtype() and
+		item:getActualMaterial() == filterItem:getActualMaterial() and
+		(
+			item:getActualMaterialIndex() == filterItem:getActualMaterialIndex() or
+			-- Fixing an observed bug:
+			item.mat_index == -1 and filterItem.mat_index == 0 or
+			item.mat_index == 0 and filterItem.mat_index == -1
+		)
+	return match
+end
+
+function hopperItemFilterCheck(item, filterItem)
+	if not hopperIndividualItemFilterCheck(item, filterItem) then
+		return false
+	end
+	local itemContents = dfhack.items.getContainedItems(item)
+	local filterItemContents = dfhack.items.getContainedItems(filterItem) -- Gets erased from as items are matched against
+	if #itemContents ~= #filterItemContents then
+		return false
+	end
+	for _, containedItem in ipairs(itemContents) do
+		local foundForThisContainedItem = false
+		for filterI, containedFilterItem in ipairs(filterItemContents) do
+			if hopperIndividualItemFilterCheck(containedItem, containedFilterItem) then
+				foundForThisContainedItem = true
+				filterItemContents[filterI], filterItemContents[#filterItemContents] = filterItemContents[#filterItemContents], nil
+				break
+			end
+		end
+		if not foundForThisContainedItem then
+			return false
+		end
+	end
+	return true
+end
+
+function itemMatchesHopperFilters(item, filterItems)
+	for _, filterItem in ipairs(filterItems) do
+		if hopperItemFilterCheck(item, filterItem) then
+			return true
+		end
+	end
+	return false
+end
+
+function gatherHopperFilterItems(x, y, z, filterItems)
+	local building = helpers.getBuildingAt(x, y, z)
+	if not building then
+		return
+	end
+	if building._type ~= df.building_workshopst then
+		return
+	end
+	local customType = df.building_def.find(building.custom_type)
+	if not customType then
+		return
+	end
+	if customType.code ~= "WITCH_MACHINE_STORAGE" then
+		return
+	end
+
+	for _, itemRef in ipairs(building.contained_items) do
+		if itemRef.use_mode == 0 and itemRef.item.flags.in_building then
+			table.insert(filterItems, itemRef.item)
+		end
+	end
 end
 
 function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocations)
@@ -46,14 +120,14 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 			-- Find an item to give
 			local itemRefIndex, itemRef
 			for i, ref in ipairs(hopperBuilding.contained_items) do
-				if ref.use_mode == 0 then
+				if ref.use_mode == 0 and hopperCanMoveItem(ref.item) then
 					itemRefIndex = i
 					itemRef = ref
 					break
 				end
 			end
 			local item = itemRef and itemRef.item
-			if item and hopperCanMoveItem(item) then
+			if item then
 				if belowBuilding and belowBuilding._type == df.building_trapst and belowBuilding.trap_type == df.trap_type.TrackStop then
 					-- Give item to a minecart, if present
 					if minecartLocations[belowX] and minecartLocations[belowX][belowY] and minecartLocations[belowX][belowY][belowZ] then
@@ -62,7 +136,7 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 							helpers.moveItemBuildingToContainer(hopperBuilding, minecart, itemRefIndex)
 						end
 					end
-				elseif belowBuilding and isBuildingHopperInteractable(belowBuilding) then
+				elseif belowBuilding and isBuildingHopperInteractable(belowBuilding) and belowBuilding:getClutterLevel() <= 1 then
 					-- Give item to a building
 					helpers.moveItemBuildings(hopperBuilding, belowBuilding, itemRefIndex)
 				end
@@ -71,6 +145,14 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 	end
 
 	if takeFromAbove then
+		local filterItems = {}
+		local x, y, z = hopperBuilding.centerx, hopperBuilding.centery, hopperBuilding.z
+		gatherHopperFilterItems(x + 1, y, z, filterItems)
+		gatherHopperFilterItems(x - 1, y, z, filterItems)
+		gatherHopperFilterItems(x, y + 1, z, filterItems)
+		gatherHopperFilterItems(x, y - 1, z, filterItems)
+		local whitelisting = #filterItems > 0 -- Only start blocking items if a filter item is present
+
 		-- Capacity check by item count, not volume
 		local passingItemCount = 0
 		for _, itemRef in ipairs(hopperBuilding.contained_items) do
@@ -96,7 +178,7 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 							end
 							if itemToTakeRef then
 								local item = itemToTakeRef:getItem()
-								if item and hopperCanMoveItem(item) then
+								if item and hopperCanMoveItem(item) and (not whitelisting or itemMatchesHopperFilters(item, filterItems)) then
 									helpers.moveItemContainerToBuilding(minecart, hopperBuilding, itemToTakeRefIndex)
 								end
 							end
@@ -117,7 +199,7 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 						-- 	end
 						-- end
 						-- Better to just avoid moving any items that might cause errors
-						local canTakeItem = hopperCanMoveItem(item)
+						local canTakeItem = hopperCanMoveItem(item) and (not whitelisting or itemMatchesHopperFilters(item, filterItems))
 						if itemRef.use_mode == 0 and canTakeItem then
 							helpers.moveItemBuildings(aboveBuilding, hopperBuilding, i)
 							break
@@ -133,14 +215,16 @@ local function onTick()
 	local hopperTimer = helpers.getPersistNum("hopperTimer") or 0
 	local takeFromAboveNextUpdate = helpers.getPersistBool("hopperTakeFromAboveNextUpdate")
 	hopperTimer = hopperTimer - 1
+	local timerCompleted = false
 	if hopperTimer <= 0 then
+		timerCompleted = true
 		hopperTimer = consts.hopperRepeatInterval
 		helpers.setPersistBool("hopperTakeFromAboveNextUpdate", not takeFromAboveNextUpdate)
 	end
 	helpers.setPersistNum("hopperTimer", hopperTimer)
 
 	local takeFromAbove, giveToBelow
-	if hopperTimer == 0 then
+	if timerCompleted then
 		giveToBelow = true
 		takeFromAbove = takeFromAboveNextUpdate
 	end
@@ -217,7 +301,7 @@ function enable()
 	buildingHacks.registerBuilding({
 		name = "WITCH_HOPPER",
 		consume = 10,
-		needs_power = 10,
+		needs_power = 1,
 		gears = {
 			{x = 0, y = 0}
 		},
