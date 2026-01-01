@@ -19,7 +19,7 @@ hopperMaxItemCapacity = 4 -- Count, not volume
 
 -- Automata
 automatonPylonRadius = 12
-automatonWorkActionSubtractPerTick = 10
+automatonInstantJobActionCount = 10
 automatonWorkSmallMagicPuffChance = 0.02
 automatonWorkLargeMagicPuffChance = 0.005
 automatonWorkSmallMagicPuffSize = 6

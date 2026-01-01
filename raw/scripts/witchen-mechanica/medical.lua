@@ -375,7 +375,7 @@ function createAdministerMedicationJob(patient, administerer, toUse)
 	end
 
 	local bedBuilding = helpers.getBuildingAt(dfhack.units.getPosition(patient))
-	if not bedBuilding or bedBuilding._type ~= df.building_bedst then
+	if not bedBuilding or bedBuilding._type ~= df.building_bedst or not helpers.isBuildingConstructed(bedBuilding) then
 		return false, "notSafelyInBed"
 	end
 
@@ -727,7 +727,7 @@ local function handleFlooredRestingWounded()
 			return
 		end
 		local bedBuilding = helpers.getBuildingAt(dfhack.units.getPosition(patient))
-		if not bedBuilding or bedBuilding._type ~= df.building_bedst then
+		if not bedBuilding or bedBuilding._type ~= df.building_bedst or not helpers.isBuildingConstructed(bedBuilding) then
 			table.insert(patientsWithoutBeds, patient)
 			return
 		end

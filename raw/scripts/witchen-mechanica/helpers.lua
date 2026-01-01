@@ -997,3 +997,10 @@ end
 -- 		links.take_from_pile:erase(selfTakeIndexShop)
 -- 	end
 -- end
+
+function isBuildingConstructed(building)
+	return
+		building:isActual() and
+		building.flags.exists and
+		building:getBuildStage() >= building:getMaxBuildStage()
+end

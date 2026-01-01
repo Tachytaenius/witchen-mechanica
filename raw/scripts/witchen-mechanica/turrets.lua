@@ -17,7 +17,7 @@ local function ensureTurretSquadsTable()
 end
 
 local function isTurretBuilding(building)
-	if not building:isActual() then
+	if not helpers.isBuildingConstructed(building) then
 		return false
 	end
 	local customType = df.building_def.find(building.custom_type)

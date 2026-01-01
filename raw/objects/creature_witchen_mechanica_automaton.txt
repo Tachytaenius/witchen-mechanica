@@ -14,7 +14,6 @@ creature_witchen_mechanica_automaton
 
 	[EQUIPMENT_WAGON] Sets EQUIPMENT_WAGON and EQUIPMENT flags and then we get lots of stuff including NO_DRINK, NO_SLEEP, etc
 	[WITCHEN_MECHANICA_UNSET_CREATURE_FLAGS:EQUIPMENT_WAGON] Unset the actual EQUIPMENT_WAGON flag so that they aren't used as caravan wagons. NOTE: scuttle flag must also be removed.
-	[WITCHEN_MECHANICA_UNSET_CASTE_FLAGS:NOSTUN] So that the deactivation syndrome works
 	They also need to be domesticated to avoid randomly attacking people
 	(WITCHEN_MECHANICA_DEATH_FLOW:10:Smoke:NONE:NONE) Disabled because they vanish, producing smoke (too much but we can maybe fix that (TODO))
 	[WITCHEN_MECHANICA_IS_AUTOMATON] Enter automaton update function
@@ -65,3 +64,27 @@ creature_witchen_mechanica_automaton
 	[VIEWRANGE:0]
 	[WEBIMMUNE]
 	[GRASSTRAMPLE:0]
+
+	Items with quality ratings will always be low, because automata can't learn skills and their attributes are all at minimum.
+	This does make them slow also, but since we want the automata to have an endgame purpose and not be completely outdone by normal skilled workers, they are made to do jobs very fast (in their management code).
+
+	[PHYS_ATT_RANGE:STRENGTH:0:0:0:0:0:0:0]
+	[PHYS_ATT_RANGE:AGILITY:0:0:0:0:0:0:0]
+	[PHYS_ATT_RANGE:TOUGHNESS:0:0:0:0:0:0:0]
+	[PHYS_ATT_RANGE:ENDURANCE:0:0:0:0:0:0:0]
+	[PHYS_ATT_RANGE:RECUPERATION:0:0:0:0:0:0:0]
+	[PHYS_ATT_RANGE:DISEASE_RESISTANCE:0:0:0:0:0:0:0]
+
+	[MENT_ATT_RANGE:ANALYTICAL_ABILITY:0:0:0:0:0:0:0]
+	[MENT_ATT_RANGE:FOCUS:0:0:0:0:0:0:0]
+	[MENT_ATT_RANGE:WILLPOWER:0:0:0:0:0:0:0]
+	[MENT_ATT_RANGE:CREATIVITY:0:0:0:0:0:0:0]
+	[MENT_ATT_RANGE:INTUITION:0:0:0:0:0:0:0]
+	[MENT_ATT_RANGE:PATIENCE:0:0:0:0:0:0:0]
+	[MENT_ATT_RANGE:MEMORY:0:0:0:0:0:0:0]
+	[MENT_ATT_RANGE:LINGUISTIC_ABILITY:0:0:0:0:0:0:0]
+	[MENT_ATT_RANGE:SPATIAL_SENSE:0:0:0:0:0:0:0]
+	[MENT_ATT_RANGE:MUSICALITY:0:0:0:0:0:0:0]
+	[MENT_ATT_RANGE:KINESTHETIC_SENSE:0:0:0:0:0:0:0]
+	[MENT_ATT_RANGE:EMPATHY:0:0:0:0:0:0:0]
+	[MENT_ATT_RANGE:SOCIAL_AWARENESS:0:0:0:0:0:0:0]

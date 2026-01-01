@@ -68,7 +68,59 @@ end
 local function workOnCurrentJob(automatonUnit)
 	-- The game is surprisingly compliant with our vision here. The automata actually do jobs.
 	-- So we will just add some effects and speed up the process.
-	dfhack.units.subtractGroupActionTimers(automatonUnit, consts.automatonWorkActionSubtractPerTick, df.unit_action_type_group.Work)
+
+	local currentJobActionCount = 0
+	local hasJobRecover = false
+	local firstJobAction
+	for _, action in ipairs(automatonUnit.actions) do
+		if action.type == df.unit_action_type.Job then
+			firstJobAction = firstJobAction or action
+			currentJobActionCount = currentJobActionCount + 1
+
+			action.data.job.timer = 1
+		elseif action.type == df.unit_action_type.JobRecover then
+			hasJobRecover = true
+		end
+	end
+	if not hasJobRecover and currentJobActionCount == 1 then
+		local noneActionSearchStart = 0
+		local noNoneActionsLeft = false
+		for _=1, consts.automatonInstantJobActionCount - currentJobActionCount do
+			local action
+
+			if not noNoneActionsLeft then
+				local foundNoneAction = false
+				for i = noneActionSearchStart, #automatonUnit.actions - 1 do
+					local potentialNoneAction = automatonUnit.actions[i]
+					if potentialNoneAction.type == df.unit_action_type.None then
+						action = potentialNoneAction
+						foundNoneAction = true
+						noneActionSearchStart = i + 1
+						break
+					end
+				end
+				if not foundNoneAction then
+					noNoneActionsLeft = true
+				end
+			end
+
+			if not action then
+				action = df.unit_action:new()
+				automatonUnit.actions:insert("#", action)
+			end
+
+			action.id = automatonUnit.next_action_id
+			automatonUnit.next_action_id = automatonUnit.next_action_id + 1
+
+			action.type = df.unit_action_type.Job
+			action.data.job.x = firstJobAction.data.job.x
+			action.data.job.y = firstJobAction.data.job.y
+			action.data.job.z = firstJobAction.data.job.z
+
+			action.data.job.timer = 1
+		end
+	end
+
 	local position = xyz2pos(dfhack.units.getPosition(automatonUnit))
 	if not position then
 		return
@@ -220,6 +272,9 @@ local function onTick()
 		if customType.code ~= "AUTOMATON_PYLON_BASE" then
 			goto continue
 		end
+		if not helpers.isBuildingConstructed(building) then
+			goto continue
+		end
 		if building:isUnpowered() then
 			goto continue
 		end
@@ -246,6 +301,9 @@ local function onTick()
 			goto continue
 		end
 		if topCustomType.code ~= "AUTOMATON_PYLON_TOP" then
+			goto continue
+		end
+		if not helpers.isBuildingConstructed(topBuilding) then
 			goto continue
 		end
 
@@ -280,7 +338,6 @@ function createAutomaton(x, y, z, core, languageId, civId)
 
 	newAutomaton.flags3.scuttle = false
 	newAutomaton.civ_id = civId
-	-- TODO: Uniform sizes(?) etc(?)
 	createUnit.setAge(newAutomaton, 0)
 	createUnit.induceBodyComputations(newAutomaton)
 	createUnit.domesticateUnit(newAutomaton) -- TODO: What about advfort (adventure mode), will domestication work?
@@ -291,12 +348,20 @@ function createAutomaton(x, y, z, core, languageId, civId)
 			nameStruct.type = df.language_name_type.Figure
 			nameStruct.has_name = true
 		end
+
 		setName(newAutomaton.name)
+
 		local histfig = df.historical_figure.find(newAutomaton.hist_figure_id)
 		if histfig then
 			setName(histfig.name)
 		end
+
+		local soul = newAutomaton.status.current_soul
+		if soul then
+			setName(soul.name)
+		end
 	end
+	newAutomaton.counters2.stored_fat = 0
 
 	if not core then
 		return

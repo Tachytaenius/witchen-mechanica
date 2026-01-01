@@ -104,6 +104,9 @@ function gatherHopperFilterItems(x, y, z, filterItems)
 	if customType.code ~= "WITCH_MACHINE_STORAGE" then
 		return
 	end
+	if not helpers.isBuildingConstructed(building) then
+		return
+	end
 
 	for _, itemRef in ipairs(building.contained_items) do
 		if itemRef.use_mode == 0 and itemRef.item.flags.in_building then
@@ -128,7 +131,8 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 			end
 			local item = itemRef and itemRef.item
 			if item then
-				if belowBuilding and belowBuilding._type == df.building_trapst and belowBuilding.trap_type == df.trap_type.TrackStop then
+				local belowBuildingConstructed = belowBuilding and helpers.isBuildingConstructed(belowBuilding)
+				if belowBuildingConstructed and belowBuilding._type == df.building_trapst and belowBuilding.trap_type == df.trap_type.TrackStop then
 					-- Give item to a minecart, if present
 					if minecartLocations[belowX] and minecartLocations[belowX][belowY] and minecartLocations[belowX][belowY][belowZ] then
 						local minecart = minecartLocations[belowX][belowY][belowZ][1]
@@ -136,7 +140,7 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 							helpers.moveItemBuildingToContainer(hopperBuilding, minecart, itemRefIndex)
 						end
 					end
-				elseif belowBuilding and isBuildingHopperInteractable(belowBuilding) and belowBuilding:getClutterLevel() <= 1 then
+				elseif belowBuildingConstructed and isBuildingHopperInteractable(belowBuilding) and belowBuilding:getClutterLevel() <= 1 then
 					-- Give item to a building
 					helpers.moveItemBuildings(hopperBuilding, belowBuilding, itemRefIndex)
 				end
@@ -164,7 +168,8 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 			local aboveX, aboveY, aboveZ = hopperBuilding.centerx, hopperBuilding.centery, hopperBuilding.z + 1
 			if helpers.canMachinePassThroughFloor(aboveX, aboveY, aboveZ) then
 				local aboveBuilding = helpers.getBuildingAt(aboveX, aboveY, aboveZ)
-				if aboveBuilding and aboveBuilding._type == df.building_trapst and aboveBuilding.trap_type == df.trap_type.TrackStop then
+				local aboveBuildingConstructed = aboveBuilding and helpers.isBuildingConstructed(aboveBuilding)
+				if aboveBuildingConstructed and aboveBuilding._type == df.building_trapst and aboveBuilding.trap_type == df.trap_type.TrackStop then
 					if minecartLocations[aboveX] and minecartLocations[aboveX][aboveY] and minecartLocations[aboveX][aboveY][aboveZ] then
 						local minecart = minecartLocations[aboveX][aboveY][aboveZ][1]
 						if minecart then
@@ -184,7 +189,7 @@ function updateHopper(hopperBuilding, takeFromAbove, giveToBelow, minecartLocati
 							end
 						end
 					end
-				elseif aboveBuilding and isBuildingHopperInteractable(aboveBuilding) then
+				elseif aboveBuildingConstructed and isBuildingHopperInteractable(aboveBuilding) then
 					for i, itemRef in ipairs(aboveBuilding.contained_items) do
 						local item = itemRef.item
 						-- local canTakeItem = true
